@@ -151,6 +151,11 @@ original StageTraxx ID internally to match them up.
 
 See `PROJECT_STRUCTURE.md` for a full file-by-file breakdown.
 
+## Guiding principles
+
+See `CONSTITUTION.md` for the mission and design principles every feature is
+held to.
+
 ## Version history
 
 See `CHANGELOG.md`.
