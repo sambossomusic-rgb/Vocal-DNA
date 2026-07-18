@@ -19,6 +19,34 @@ it, and lets you browse, search, filter, rate, and analyze your repertoire.
 
 ---
 
+## Use it on iPad with no computer (GitHub Pages)
+
+If you only have an iPad — no computer to run `npm run dev` — the repo
+builds and deploys itself automatically via GitHub Actions to GitHub Pages
+on every push to `main`. This is still just a static file host: no backend,
+no accounts, your data still lives only in Safari's local storage on your
+iPad.
+
+One-time setup (does through the GitHub website, not the iPad app):
+1. In the repo, go to **Settings → Pages**.
+2. Under "Build and deployment", set **Source** to **GitHub Actions**.
+3. Push (or merge) to `main` — the "Deploy to GitHub Pages" workflow builds
+   the app and publishes it. Check the **Actions** tab for the run and the
+   published URL (looks like
+   `https://<owner>.github.io/Vocal-DNA/`).
+
+Then on the iPad:
+1. Open that URL in **Safari**.
+2. Tap **Share → Add to Home Screen**.
+3. Use the installed icon like any other app. After the first load it also
+   works offline (the service worker caches everything).
+4. Import your `.st4b` file from the **Import** tab as usual.
+
+Every future push to `main` redeploys automatically — reload the installed
+app (or re-add to home screen) to pick up updates.
+
+---
+
 ## Requirements
 
 - [Node.js](https://nodejs.org) 18 or newer (only needed to *build/run* the

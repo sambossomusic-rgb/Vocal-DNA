@@ -7,6 +7,7 @@ import { VitePWA } from 'vite-plugin-pwa';
 // service. The PWA plugin adds a manifest + service worker so it can be
 // installed to an iPad home screen and used offline after the first load.
 export default defineConfig({
+  base: './',
   plugins: [
     react(),
     VitePWA({
