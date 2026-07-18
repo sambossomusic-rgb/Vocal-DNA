@@ -3,6 +3,7 @@ import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion } from '../../db/dataVersion';
 import type { Song, Artist, Folder, Track, Rating } from '../../types/domain';
 import { RatingForm } from '../rating/RatingForm';
+import { TagEditor } from '../tags/TagEditor';
 
 interface Props {
   songId: string;
@@ -83,6 +84,11 @@ export function SongDetailView({ songId, onBack }: Props): JSX.Element {
           <div className="stat-number">{tracks.length}</div>
           <div className="stat-label">Tracks</div>
         </div>
+      </div>
+
+      <div className="section-title">Tags</div>
+      <div className="card">
+        <TagEditor songId={songId} />
       </div>
 
       <div className="section-title">Your rating</div>

@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion } from '../../db/dataVersion';
-import type { Song, Artist, Folder, Rating, SongStatus } from '../../types/domain';
+import type { Song, Artist, Folder, Rating, SongStatus, Keyword, SongKeyword } from '../../types/domain';
 import { SongCard } from './SongCard';
 import { FilterPanel, type FilterState } from './FilterPanel';
+import { BatchActionsBar } from './BatchActionsBar';
 
 interface Props {
   onOpenSong: (songId: string) => void;
@@ -15,6 +16,7 @@ const EMPTY_FILTERS: FilterState = {
   artistId: null,
   keyNote: null,
   status: null,
+  tagIds: [],
 };
 
 export function LibraryView({ onOpenSong }: Props): JSX.Element {
@@ -26,10 +28,21 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
   const artists = useLiveQuery<Artist[]>(() => db.artists.toArray(), [dataVersion], []);
   const folders = useLiveQuery<Folder[]>(() => db.folders.toArray(), [dataVersion], []);
   const ratings = useLiveQuery<Rating[]>(() => db.ratings.toArray(), [dataVersion], []);
+  const tags = useLiveQuery<Keyword[]>(() => db.keywords.toArray(), [dataVersion], []);
+  const songKeywords = useLiveQuery<SongKeyword[]>(() => db.songKeywords.toArray(), [dataVersion], []);
 
   const artistById = useMemo(() => new Map(artists.map((a) => [a.id, a])), [artists]);
   const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
   const ratingBySongId = useMemo(() => new Map(ratings.map((r) => [r.songId, r])), [ratings]);
+  const tagIdsBySongId = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const link of songKeywords) {
+      const list = map.get(link.songId) ?? [];
+      list.push(link.keywordId);
+      map.set(link.songId, list);
+    }
+    return map;
+  }, [songKeywords]);
 
   const filteredSongs = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -48,9 +61,13 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
         const status: SongStatus = rating?.status ?? 'new';
         if (status !== filters.status) return false;
       }
+      if (filters.tagIds.length > 0) {
+        const songTagIds = tagIdsBySongId.get(song.id) ?? [];
+        if (!filters.tagIds.every((tagId) => songTagIds.includes(tagId))) return false;
+      }
       return true;
     });
-  }, [songs, query, filters, artistById, ratingBySongId]);
+  }, [songs, query, filters, artistById, ratingBySongId, tagIdsBySongId]);
 
   const availableKeys = useMemo(() => {
     const keys = new Set<string>();
@@ -81,9 +98,12 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
         artists={artists}
         folders={folders}
         availableKeys={availableKeys}
+        tags={tags}
         value={filters}
         onChange={setFilters}
       />
+
+      <BatchActionsBar songs={filteredSongs} />
 
       <div className="section-title" style={{ marginTop: 20 }}>
         {filteredSongs.length} of {songs.length} songs

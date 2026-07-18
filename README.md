@@ -126,17 +126,26 @@ just something on your local network serving static files.
 1. **Import** tab → choose your `.st4b` file. VocalDNA reads it once, copies
    everything into its own local database, and never touches the original
    file again.
-2. **Library** tab → browse every imported song, search instantly by title
-   or artist, and filter by folder, artist, key, or rating status.
-3. Tap any song card to open its **detail page**: key, BPM, duration, track
-   list, lyrics/chart, and your rating form.
-4. Rate a song on **Difficulty, Confidence, Enjoyment, Fatigue**, set a
-   **Transpose** amount, a **Status**, and free-text **Notes**. Tap
-   **Save rating**.
-5. **Statistics** tab → repertoire-wide numbers: song/artist/folder counts,
+2. **Assess** tab (the default screen) → the fast path through a whole
+   library. One question per song — 🎤 Regular / 🎵 Occasional / 📚 Learning /
+   🚫 Never — one tap, auto-advance to the next song. Regular/Occasional
+   songs get one extra quick screen (Demand, Reliability, Transpose, Notes),
+   prefilled from what you've already rated so agreeing is a single tap. A
+   progress header tracks imported/assessed/remaining and prediction
+   confidence as you go.
+3. **Library** tab → browse every imported song, search instantly by title
+   or artist, and filter by folder, artist, key, rating status, or tags.
+   The batch actions bar can mark, transpose, or note every song currently
+   shown (by folder/artist/tag/search) in one action.
+4. Tap any song card to open its **detail page**: key, BPM, duration, track
+   list, lyrics/chart, your own tags, and the detailed rating form.
+5. The detailed rating form still rates a song on **Difficulty, Confidence,
+   Enjoyment, Fatigue**, sets a **Transpose** amount, a **Status**, and
+   free-text **Notes** — useful for a deeper pass beyond the fast Assess flow.
+6. **Statistics** tab → repertoire-wide numbers: song/artist/folder counts,
    average BPM, key distribution, rating coverage, average ratings, rating
    status breakdown, top artists.
-6. **Voice Profile** tab → a profile built entirely from your own ratings:
+7. **Voice Profile** tab → a profile built entirely from your own ratings:
    strongest keys (by confidence), most challenging keys (by difficulty),
    transpose patterns, a "repertoire map" (strongest / comfort zone /
    growing / needs work), and a recent fatigue trend.

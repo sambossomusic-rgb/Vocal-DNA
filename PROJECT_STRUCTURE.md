@@ -28,14 +28,17 @@ vocaldna/
     │
     ├── types/
     │   └── domain.ts              VocalDNA's own domain types: Song, Artist, Folder,
-    │                              Track, Rating, SongStatus, ExternalIdMapping,
-    │                              ImportLogEntry, Setting, and reserved types for
-    │                              future features (Playlist, Keyword, VoiceProfileEntry)
+    │                              Track, Rating, SongStatus, PerformanceFrequency
+    │                              (Version 2), ExternalIdMapping, ImportLogEntry,
+    │                              Setting, createDefaultRating(), and reserved types
+    │                              for future features (Playlist, Keyword/Tag,
+    │                              VoiceProfileEntry, PerformanceHistoryEntry)
     │
     ├── db/
     │   ├── db.ts                  Dexie database class — the actual IndexedDB schema.
     │   │                          Table names/shapes are VocalDNA's own, not mirrored
-    │   │                          from StageTraxx.
+    │   │                          from StageTraxx. Version 2 only added the reserved
+    │   │                          performanceHistory table.
     │   ├── useLiveQuery.ts        Small hook that re-runs a query when a dependency
     │   │                          (usually the global data version) changes
     │   └── dataVersion.ts         Global "data changed" counter — bumped after any
@@ -56,29 +59,51 @@ vocaldna/
     │   ├── statsEngine.ts         Pure functions computing the Statistics dashboard's
     │   │                          data. Zero React/UI imports — takes plain arrays,
     │   │                          returns a plain object.
-    │   └── voiceProfileEngine.ts  Pure functions computing the Voice Profile
-    │                              dashboard's data (key confidence, transpose
-    │                              patterns, repertoire quadrants, fatigue trend).
-    │                              Also zero UI imports.
+    │   ├── voiceProfileEngine.ts  Pure functions computing the Voice Profile
+    │   │                          dashboard's data (key confidence, transpose
+    │   │                          patterns, repertoire quadrants, fatigue trend).
+    │   │                          Also zero UI imports.
+    │   ├── predictionEngine.ts    Version 2 — pure statistical learning (no AI):
+    │   │                          per-tag demand/reliability/frequency averages and
+    │   │                          per-key transpose averages, blended into a single
+    │   │                          per-song prediction.
+    │   └── progressEngine.ts      Version 2 — pure function computing the Assess
+    │                              tab's progress dashboard numbers.
     │
     └── features/
         ├── import/
         │   └── ImportView.tsx           File picker + import trigger + result summary
         │
+        ├── assess/                      Version 2 — Quick Assessment mode
+        │   ├── AssessView.tsx           Owns the assessment queue, progress header,
+        │   │                            and routes between the two cards below
+        │   ├── QuickAssessCard.tsx       The one-question, one-tap screen
+        │   └── FollowUpCard.tsx         Demand/Reliability/Transpose/Notes, prefilled
+        │                                 from predictionEngine, one-tap "Save & Next"
+        │
+        ├── tags/                        Version 2 — free-form tag system
+        │   └── TagEditor.tsx            Per-song tag chip picker/creator, used from
+        │                                 Song Detail
+        │
         ├── library/
-        │   ├── LibraryView.tsx          Loads songs/artists/folders/ratings, wires
-        │   │                            search + filters together, renders the grid
+        │   ├── LibraryView.tsx          Loads songs/artists/folders/ratings/tags,
+        │   │                            wires search + filters together, renders
+        │   │                            the grid and the batch actions bar
         │   ├── SongCard.tsx             One song's card in the grid
-        │   └── FilterPanel.tsx          Folder / artist / key / status filter controls
+        │   ├── FilterPanel.tsx          Folder / artist / key / status / tag (multi)
+        │   │                            filter controls
+        │   └── BatchActionsBar.tsx      Version 2 — mark all / apply transpose / apply
+        │                                 notes to whatever the Library currently shows
         │
         ├── song-detail/
         │   └── SongDetailView.tsx       Full song detail: metadata, tracks, lyrics,
-        │                                 embeds the rating form
+        │                                 tags (Version 2), embeds the rating form
         │
         ├── rating/
         │   └── RatingForm.tsx           Difficulty/Confidence/Enjoyment/Fatigue
         │                                 sliders, Transpose stepper, Status select,
-        │                                 Notes textarea, Save button
+        │                                 Notes textarea, Save button. Exports
+        │                                 ScaleSlider (reused by FollowUpCard).
         │
         ├── stats/
         │   └── StatsView.tsx            Statistics dashboard UI (renders statsEngine

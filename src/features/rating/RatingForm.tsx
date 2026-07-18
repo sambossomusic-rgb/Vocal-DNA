@@ -117,9 +117,10 @@ interface ScaleSliderProps {
   label: string;
   value: number;
   onChange: (value: number) => void;
+  max?: number;
 }
 
-function ScaleSlider({ label, value, onChange }: ScaleSliderProps): JSX.Element {
+export function ScaleSlider({ label, value, onChange, max = 5 }: ScaleSliderProps): JSX.Element {
   return (
     <div className="slider-row">
       <label style={{ width: 110, fontSize: 14, color: 'var(--text-dim)' }}>{label}</label>
@@ -127,7 +128,7 @@ function ScaleSlider({ label, value, onChange }: ScaleSliderProps): JSX.Element 
         className="slider-input"
         type="range"
         min={1}
-        max={5}
+        max={max}
         step={1}
         value={value}
         onChange={(e) => onChange(Number(e.target.value))}

@@ -33,6 +33,11 @@ export interface Song {
   lastPlayed: string | null; // ISO timestamp
   addedAt: string | null; // ISO timestamp
   updatedAt: string; // ISO timestamp, set by VocalDNA on every write
+
+  // --- Reserved for future features (see Constitution Feature 9). Not
+  // populated or editable by any screen yet. ---
+  capo?: number | null;
+  alternateTuning?: string | null;
 }
 
 export interface Track {
@@ -57,6 +62,21 @@ export const SONG_STATUSES: SongStatus[] = [
 ];
 
 /**
+ * Version 2's Quick Assessment answer: how often the performer currently
+ * plays this song. Distinct from `SongStatus` above (a workflow stage set
+ * via the detailed rating form) — this is the fast, one-tap signal used to
+ * drive the assessment queue, adaptive defaults, and predictions.
+ */
+export type PerformanceFrequency = 'regular' | 'occasional' | 'learning' | 'never';
+
+export const PERFORMANCE_FREQUENCIES: PerformanceFrequency[] = [
+  'regular',
+  'occasional',
+  'learning',
+  'never',
+];
+
+/**
  * A rating is one row per song, holding the musician's own self-assessment.
  * All numeric scales are 1-5. Transpose is in semitones and may be negative.
  */
@@ -70,6 +90,19 @@ export interface Rating {
   status: SongStatus;
   notes: string;
   ratedAt: string; // ISO timestamp of the most recent save
+
+  // --- Version 2: Quick Assessment fields. Optional so every Version 1 row
+  // (which never set these) keeps loading and saving without a migration. ---
+  performanceFrequency?: PerformanceFrequency | null;
+  demand?: number | null; // 1-10, overall audience/setlist demand
+  reliability?: number | null; // 1-10, how reliably the performer nails it
+
+  // --- Reserved for future features (see Constitution Feature 9). Not
+  // populated or editable by any screen yet. ---
+  audienceRating?: number | null;
+  guitarDifficulty?: number | null;
+  soloDifficulty?: number | null;
+  performanceNotes?: string | null;
 }
 
 /**
@@ -112,7 +145,11 @@ export interface Setting {
   value: string;
 }
 
-// --- Reserved schema, not used in Version 1 (see README / MASTER PLAN) ---
+// --- Reserved schema, not used in Version 1. `Keyword`/`SongKeyword` are
+// now used starting in Version 2 as VocalDNA's free-form Tag system (see
+// Constitution Feature 7) — table names are unchanged to avoid an
+// unnecessary database rename, but every Version 2+ screen presents them
+// to the performer as "Tags". `Playlist`/`PlaylistItem` remain reserved. ---
 
 export interface Playlist {
   id: string;
@@ -126,6 +163,7 @@ export interface PlaylistItem {
   position: number;
 }
 
+/** A user-created tag (e.g. "Crowd Pleaser", "Waltz", "Country"). Free-form — never hardcoded. */
 export interface Keyword {
   id: string;
   name: string;
@@ -134,4 +172,34 @@ export interface Keyword {
 export interface SongKeyword {
   songId: string;
   keywordId: string;
+}
+
+/**
+ * Reserved for future per-gig performance logging (see Constitution
+ * Feature 9). Not populated or read by any Version 2 screen.
+ */
+export interface PerformanceHistoryEntry {
+  id: string;
+  songId: string;
+  createdAt: string;
+}
+
+/**
+ * The Version 1 rating defaults, factored out so every Version 2 write path
+ * that can create a brand-new rating row (Quick Assessment, Batch Actions)
+ * fills the untouched Version 1 fields the same way the detailed Rating
+ * Form always has, instead of leaving them undefined.
+ */
+export function createDefaultRating(songId: string): Rating {
+  return {
+    songId,
+    difficulty: 3,
+    confidence: 3,
+    enjoyment: 3,
+    fatigue: 3,
+    transpose: 0,
+    status: 'new',
+    notes: '',
+    ratedAt: new Date().toISOString(),
+  };
 }

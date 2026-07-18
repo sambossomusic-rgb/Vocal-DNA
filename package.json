@@ -1,6 +1,6 @@
 {
   "name": "vocaldna",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Local-first vocal repertoire manager. Runs entirely in the browser as a PWA. Imports StageTraxx4 (.st4b) libraries into an IndexedDB database.",
   "private": true,
   "type": "module",

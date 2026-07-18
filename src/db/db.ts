@@ -13,6 +13,7 @@ import type {
   Keyword,
   SongKeyword,
   VoiceProfileEntry,
+  PerformanceHistoryEntry,
 } from '../types/domain';
 
 /**
@@ -36,13 +37,18 @@ export class VocalDnaDatabase extends Dexie {
   importLog!: Table<ImportLogEntry, number>;
   settings!: Table<Setting, string>;
 
-  // Reserved for future features — created now so the schema is stable,
-  // populated by nothing in Version 1.
+  // `keywords`/`songKeywords` were reserved in Version 1 and are now the
+  // Version 2 Tag system (see types/domain.ts). `playlists`/`playlistItems`
+  // and `voiceProfileEntries` remain reserved and unused.
   playlists!: Table<Playlist, string>;
   playlistItems!: Table<PlaylistItem, string>;
   keywords!: Table<Keyword, string>;
   songKeywords!: Table<SongKeyword, [string, string]>;
   voiceProfileEntries!: Table<VoiceProfileEntry, string>;
+
+  // Reserved for a future performance-history feature — created now so the
+  // schema is stable, populated by nothing in Version 2.
+  performanceHistory!: Table<PerformanceHistoryEntry, string>;
 
   constructor() {
     super('vocaldna');
@@ -61,6 +67,12 @@ export class VocalDnaDatabase extends Dexie {
       keywords: 'id, name',
       songKeywords: '[songId+keywordId], songId, keywordId',
       voiceProfileEntries: 'id, songId',
+    });
+
+    // Version 2 only adds the reserved performanceHistory table — every
+    // other table/index from Version 1 is carried forward unchanged.
+    this.version(2).stores({
+      performanceHistory: 'id, songId',
     });
   }
 }

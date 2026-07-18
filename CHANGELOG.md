@@ -2,6 +2,55 @@
 
 All notable changes to VocalDNA are recorded here.
 
+## [2.0.0] — Version 2 (speed & assessment)
+
+Built per the VocalDNA Constitution: every change targets the mission of
+reducing manual rating effort, without redesigning Version 1's architecture,
+rewriting working code, or changing the database beyond what each feature
+needed. All Version 1 data, screens, and behavior are unchanged and still
+work exactly as before.
+
+### Added
+
+1. **Quick Assessment mode** (new default tab) — a one-question,
+   one-tap-per-song flow ("How often do you currently perform this song?":
+   🎤 Regular / 🎵 Occasional / 📚 Learning / 🚫 Never) that auto-advances
+   through every unassessed song in the library.
+2. **Smart follow-up** — only songs marked Regular or Occasional get a
+   second, minimal screen: Demand (1-10), Reliability (1-10), Transpose,
+   Notes, one Save & Next button.
+3. **Adaptive defaults + statistical prediction engine** — a new,
+   UI-independent `analytics/predictionEngine.ts` learns per-tag averages
+   (demand, reliability, frequency) and per-key transpose averages from the
+   performer's own prior ratings, and the follow-up screen prefills from it
+   (with the sample size shown) so agreeing is a single tap. No AI/ML —
+   pure statistics over the performer's own data.
+4. **Progress dashboard** (`analytics/progressEngine.ts`) — songs imported,
+   assessed, remaining, prediction confidence, and most common status,
+   shown at the top of the Assess tab.
+5. **Batch actions** — mark every song in the Library's current
+   search/folder/artist/tag view as Regular/Occasional/Learning/Never, or
+   apply a transpose or note to all of them at once.
+6. **Free-form tag system** — user-created tags (never hardcoded), editable
+   per song from the Song Detail page, built on the `keywords`/
+   `songKeywords` tables reserved for exactly this in Version 1.
+7. **Tag filtering** — the Library's filter panel now supports selecting
+   multiple tags (a song must carry all selected tags), alongside the
+   existing folder/artist/key/status filters.
+8. **Schema prepared for future features** (not built yet, per the
+   Constitution) — reserved optional fields for audience rating, guitar/solo
+   difficulty, capo, alternate tuning, and performance notes, plus a
+   reserved `performanceHistory` table for future per-gig logging.
+
+### Database
+
+- Dexie bumped to version 2, adding only the reserved `performanceHistory`
+  table — every Version 1 table and index is unchanged.
+- `Rating` gained optional `performanceFrequency`, `demand`, `reliability`
+  fields (Version 1 rows work unchanged since they're optional) plus
+  reserved fields for future features.
+- `Song` gained reserved optional `capo`/`alternateTuning` fields.
+
 ## [1.0.0] — Version 1 (PWA rebuild)
 
 ### Platform change
