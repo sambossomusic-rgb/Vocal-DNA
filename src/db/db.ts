@@ -6,6 +6,7 @@ import type {
   Track,
   Rating,
   RepertoireStatus,
+  RatingValue,
   ExternalIdMapping,
   ImportLogEntry,
   Setting,
@@ -35,6 +36,12 @@ interface LegacyRatingRow {
 // spread so existing ratings remain meaningfully ordered after the upgrade.
 function scaleFiveToTen(value: number): number {
   return Math.round(1 + ((value - 1) * 9) / 4);
+}
+
+// Version 2.1's 1-10 scale bucketed back down onto Version 3's 1-5 scale
+// (Constitution Priority 1) — a clean 2:1 grouping (1-2→1, 3-4→2, ...).
+function scaleTenToFive(value: number): RatingValue {
+  return Math.ceil(value / 2) as RatingValue;
 }
 
 // Prefers Version 2's `performanceFrequency` (a closer match to the new
@@ -132,10 +139,19 @@ export class VocalDnaDatabase extends Dexie {
     this.version(3)
       .stores({})
       .upgrade(async (tx) => {
+        // This version's output shape is Version 2.1's own (1-10, non-null)
+        // — a distinct intermediate type from today's `Rating`, since
+        // Version 3 (below) rescales it again onto the 1-5 nullable shape.
+        interface V21RatingRow extends LegacyRatingRow {
+          transpose: number;
+          status: string;
+          notes: string;
+          ratedAt: string;
+        }
         await tx
           .table('ratings')
           .toCollection()
-          .modify((row: Rating & LegacyRatingRow) => {
+          .modify((row: V21RatingRow) => {
             const demand = typeof row.demand === 'number' ? row.demand : scaleFiveToTen(row.difficulty ?? 3);
             const reliability =
               typeof row.reliability === 'number' ? row.reliability : scaleFiveToTen(row.confidence ?? 3);
@@ -149,6 +165,36 @@ export class VocalDnaDatabase extends Dexie {
             delete row.difficulty;
             delete row.confidence;
             delete row.performanceFrequency;
+          });
+      });
+
+    // Version 3 (Constitution V3, Priority 1): five-point rating scale
+    // replaces the 1-10 scale. Existing rows always have numeric
+    // demand/reliability/enjoyment/fatigue at this point (Version 2.1's
+    // migration guarantees that), so this is a straight rescale — no
+    // nulls to handle yet. New rows created after this point may have
+    // null demand/reliability/enjoyment/fatigue (Priority 5's two-pass
+    // assessment), which is a TypeScript-level change only, not a schema
+    // change — IndexedDB stores whatever shape a row has.
+    this.version(4)
+      .stores({})
+      .upgrade(async (tx) => {
+        // Input shape here is Version 2.1's (1-10, non-null) — see the note
+        // on version(3) above.
+        interface TenPointRatingRow {
+          demand: number;
+          reliability: number;
+          enjoyment: number;
+          fatigue: number;
+        }
+        await tx
+          .table('ratings')
+          .toCollection()
+          .modify((row: TenPointRatingRow) => {
+            row.demand = scaleTenToFive(row.demand);
+            row.reliability = scaleTenToFive(row.reliability);
+            row.enjoyment = scaleTenToFive(row.enjoyment);
+            row.fatigue = scaleTenToFive(row.fatigue);
           });
       });
   }

@@ -16,6 +16,9 @@ export interface Folder {
   name: string;
 }
 
+/** Canonical chromatic ordering, used to step Song.keyNote up/down (Constitution Priority 2). */
+export const CHROMATIC_NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'] as const;
+
 export interface Song {
   id: string; // VocalDNA-owned UUID
   title: string;
@@ -40,6 +43,12 @@ export interface Song {
   alternateTuning?: string | null;
 }
 
+/**
+ * Reserved — Version 3 stopped importing/displaying track data entirely
+ * (Constitution Priority 3: "provides no useful information"). The table
+ * and any pre-existing rows are left alone rather than destructively
+ * dropped, but nothing reads or writes through this type anymore.
+ */
 export interface Track {
   id: string; // VocalDNA-owned UUID
   songId: string;
@@ -50,6 +59,18 @@ export interface Track {
   volume: number | null;
   muted: boolean;
 }
+
+/** The five-point rating scale used for every rating dimension (Constitution Priority 1). */
+export const RATING_SCALE = [1, 2, 3, 4, 5] as const;
+export type RatingValue = 1 | 2 | 3 | 4 | 5;
+
+export const RATING_SCALE_LABELS: Record<RatingValue, string> = {
+  1: 'Very Low',
+  2: 'Low',
+  3: 'Average',
+  4: 'Good',
+  5: 'Excellent',
+};
 
 /**
  * A song's place in the working repertoire. Replaces Version 1/2's separate
@@ -85,15 +106,19 @@ export const REPERTOIRE_STATUS_PRIORITY: Record<RepertoireStatus, number> = {
 
 /**
  * A rating is one row per song, holding the musician's own self-assessment.
- * Demand/Reliability/Enjoyment/Fatigue are all 1-10. Transpose is in
- * semitones and may be negative.
+ * Demand/Reliability/Enjoyment/Fatigue are all on the 1-5 scale above, and
+ * are nullable: Version 3's two-stage assessment (Constitution Priority 5)
+ * rates Demand+Reliability in Pass One and Enjoyment+Fatigue in Pass Two,
+ * so a song can legitimately have some of these set and others not yet —
+ * `null` means "not yet rated in that pass", distinct from any real 1-5
+ * value. Transpose is in semitones and may be negative.
  */
 export interface Rating {
   songId: string; // primary key, references songs.id
-  demand: number; // 1-10, overall audience/setlist demand
-  reliability: number; // 1-10, how reliably the performer nails it
-  enjoyment: number; // 1-10, how much they enjoy performing it
-  fatigue: number; // 1-10, how vocally tiring it is
+  demand: RatingValue | null; // overall audience/setlist demand — Pass One
+  reliability: RatingValue | null; // how reliably the performer nails it — Pass One
+  enjoyment: RatingValue | null; // how much they enjoy performing it — Pass Two
+  fatigue: RatingValue | null; // how vocally tiring it is — Pass Two
   transpose: number; // semitones, e.g. -12..+12
   status: RepertoireStatus;
   notes: string;
@@ -136,10 +161,9 @@ export interface ImportLogEntry {
   finishedAt: string;
   songsInserted: number;
   songsUpdated: number;
+  songsMatchedByNameFallback: number; // matched by artist+title, not StageTraxx id — see Priority 7/8
   artistsInserted: number;
   foldersInserted: number;
-  tracksInserted: number;
-  tracksUpdated: number;
   playlistsInserted: number;
   playlistItemsInserted: number;
 }
@@ -190,15 +214,17 @@ export interface PerformanceHistoryEntry {
 /**
  * Fallback values for any write path that can create a brand-new rating row
  * (Quick Assessment, Batch Actions) before every field has been explicitly
- * set by the performer.
+ * set by the performer. Demand/Reliability/Enjoyment/Fatigue start `null` —
+ * not a placeholder number — so Pass One/Pass Two can tell "not yet rated"
+ * from "rated but happens to be low".
  */
 export function createDefaultRating(songId: string): Rating {
   return {
     songId,
-    demand: 5,
-    reliability: 5,
-    enjoyment: 5,
-    fatigue: 5,
+    demand: null,
+    reliability: null,
+    enjoyment: null,
+    fatigue: null,
     transpose: 0,
     status: 'unexplored',
     notes: '',

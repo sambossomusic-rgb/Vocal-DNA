@@ -8,7 +8,23 @@ export interface FilterState {
   keyNote: string | null;
   status: RepertoireStatus | null;
   tagIds: string[]; // a song must carry every selected tag (AND)
+  // Set when navigating in from a Statistics/Voice Profile report (Priority
+  // 4) — restricts to exactly these songs. `songIdsLabel` names where the
+  // list came from (e.g. "Needs work") so the Library shows why.
+  songIds: string[] | null;
+  songIdsLabel: string | null;
 }
+
+export const EMPTY_FILTERS: FilterState = {
+  folderId: null,
+  playlistId: null,
+  artistId: null,
+  keyNote: null,
+  status: null,
+  tagIds: [],
+  songIds: null,
+  songIdsLabel: null,
+};
 
 interface Props {
   artists: Artist[];
@@ -40,7 +56,8 @@ export function FilterPanel({
     value.artistId ||
     value.keyNote ||
     value.status ||
-    value.tagIds.length > 0;
+    value.tagIds.length > 0 ||
+    value.songIds !== null;
 
   function toggleTag(tagId: string): void {
     const active = value.tagIds.includes(tagId);
@@ -52,6 +69,30 @@ export function FilterPanel({
 
   return (
     <div>
+      {value.songIds !== null && (
+        <div
+          className="card"
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            marginBottom: 10,
+            padding: '10px 14px',
+          }}
+        >
+          <span style={{ fontSize: 13 }}>
+            Showing <strong>{value.songIdsLabel ?? 'selected songs'}</strong> ({value.songIds.length})
+          </span>
+          <button
+            className="button-secondary"
+            style={{ padding: '6px 12px', minHeight: 32 }}
+            onClick={() => onChange({ ...value, songIds: null, songIdsLabel: null })}
+          >
+            Clear
+          </button>
+        </div>
+      )}
+
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <select
           className="select-input"
@@ -123,19 +164,7 @@ export function FilterPanel({
         </select>
 
         {hasActiveFilters && (
-          <button
-            className="button-secondary"
-            onClick={() =>
-              onChange({
-                folderId: null,
-                playlistId: null,
-                artistId: null,
-                keyNote: null,
-                status: null,
-                tagIds: [],
-              })
-            }
-          >
+          <button className="button-secondary" onClick={() => onChange(EMPTY_FILTERS)}>
             Clear filters
           </button>
         )}

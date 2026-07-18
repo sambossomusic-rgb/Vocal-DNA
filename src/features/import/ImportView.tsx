@@ -78,15 +78,68 @@ export function ImportView({ onImportComplete }: Props): JSX.Element {
 
           <div className="section-title">Merged into VocalDNA</div>
           <ul style={{ margin: '4px 0', paddingLeft: 18, fontSize: 13, color: 'var(--text-dim)' }}>
-            <li>Songs inserted: {status.summary.songsInserted}</li>
-            <li>Songs updated: {status.summary.songsUpdated}</li>
+            <li>New songs: {status.summary.songsInserted}</li>
+            <li>Updated songs: {status.summary.songsUpdated}</li>
             <li>Artists inserted: {status.summary.artistsInserted}</li>
             <li>Folders inserted: {status.summary.foldersInserted}</li>
-            <li>Tracks inserted: {status.summary.tracksInserted}</li>
-            <li>Tracks updated: {status.summary.tracksUpdated}</li>
             <li>Playlists inserted: {status.summary.playlistsInserted}</li>
             <li>Playlist-song links inserted: {status.summary.playlistItemsInserted}</li>
+            <li>Missing metadata (Key or BPM): {status.summary.missingMetadataCount}</li>
           </ul>
+
+          {status.summary.matchedByNameFallback.length > 0 && (
+            <>
+              <div className="section-title">
+                Potential conflicts — matched by name, not StageTraxx ID ({status.summary.matchedByNameFallback.length})
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 0 }}>
+                These songs' StageTraxx ID changed since the last import. VocalDNA matched them to
+                an existing song by artist + title instead of creating a duplicate — worth a quick
+                check that this is the right song.
+              </p>
+              <ul style={{ margin: '4px 0 12px', paddingLeft: 18, fontSize: 13, color: 'var(--text-dim)' }}>
+                {status.summary.matchedByNameFallback.map((s, i) => (
+                  <li key={i}>
+                    {s.title} — {s.artistName}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {status.summary.removedSongs.length > 0 && (
+            <>
+              <div className="section-title">
+                Removed from this export ({status.summary.removedSongs.length})
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 0 }}>
+                Previously imported, but not present in this file. Nothing was deleted — their
+                ratings, tags, and notes are untouched.
+              </p>
+              <ul style={{ margin: '4px 0 12px', paddingLeft: 18, fontSize: 13, color: 'var(--text-dim)' }}>
+                {status.summary.removedSongs.map((s, i) => (
+                  <li key={i}>
+                    {s.title} — {s.artistName}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {status.summary.duplicateTitleGroups.length > 0 && (
+            <>
+              <div className="section-title">
+                Duplicate titles ({status.summary.duplicateTitleGroups.length})
+              </div>
+              <ul style={{ margin: '4px 0 12px', paddingLeft: 18, fontSize: 13, color: 'var(--text-dim)' }}>
+                {status.summary.duplicateTitleGroups.map((g) => (
+                  <li key={g.title}>
+                    {g.title} ({g.count} songs)
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
 
           <button
             className="button-secondary"

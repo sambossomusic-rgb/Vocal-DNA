@@ -6,15 +6,25 @@ import { VoiceProfileView } from './features/voice-profile/VoiceProfileView';
 import { ImportView } from './features/import/ImportView';
 import { SongDetailView } from './features/song-detail/SongDetailView';
 import { useDataVersion } from './db/dataVersion';
+import { EMPTY_FILTERS, type FilterState } from './features/library/FilterPanel';
 
 type Tab = 'assess' | 'library' | 'stats' | 'voice-profile' | 'import';
 
 export function App(): JSX.Element {
   const [tab, setTab] = useState<Tab>('assess');
   const [openSongId, setOpenSongId] = useState<string | null>(null);
+  const [pendingLibraryFilter, setPendingLibraryFilter] = useState<FilterState | null>(null);
 
   // Re-render on every write anywhere in the app (import, rating save, ...).
   useDataVersion();
+
+  // Constitution Priority 4 — "every analysis should become navigation".
+  // Passed to Statistics/Voice Profile so any bar, row, or quadrant can jump
+  // straight to a filtered Library view.
+  function navigateToLibrary(filterPatch: Partial<FilterState>, label?: string): void {
+    setPendingLibraryFilter({ ...EMPTY_FILTERS, ...filterPatch, songIdsLabel: label ?? null });
+    setTab('library');
+  }
 
   if (openSongId) {
     return (
@@ -61,9 +71,17 @@ export function App(): JSX.Element {
 
       <main className="app-content">
         {tab === 'assess' && <AssessView />}
-        {tab === 'library' && <LibraryView onOpenSong={(id) => setOpenSongId(id)} />}
-        {tab === 'stats' && <StatsView />}
-        {tab === 'voice-profile' && <VoiceProfileView onOpenSong={(id) => setOpenSongId(id)} />}
+        {tab === 'library' && (
+          <LibraryView
+            onOpenSong={(id) => setOpenSongId(id)}
+            pendingFilter={pendingLibraryFilter}
+            onConsumePendingFilter={() => setPendingLibraryFilter(null)}
+          />
+        )}
+        {tab === 'stats' && <StatsView onNavigateToLibrary={navigateToLibrary} onOpenSong={(id) => setOpenSongId(id)} />}
+        {tab === 'voice-profile' && (
+          <VoiceProfileView onOpenSong={(id) => setOpenSongId(id)} onNavigateToLibrary={navigateToLibrary} />
+        )}
         {tab === 'import' && <ImportView onImportComplete={() => setTab('library')} />}
       </main>
     </div>

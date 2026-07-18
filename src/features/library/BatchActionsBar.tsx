@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
-import type { Song, Rating, RepertoireStatus, Keyword } from '../../types/domain';
+import type { Song, Rating, RepertoireStatus, RatingValue, Keyword } from '../../types/domain';
 import { createDefaultRating, REPERTOIRE_STATUSES, REPERTOIRE_STATUS_LABELS } from '../../types/domain';
 import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 
 interface Props {
   songs: Song[]; // the explicitly selected songs (Constitution Priority 4)
 }
+
+const MID_SCALE: RatingValue = 3;
 
 /**
  * Batch edits for an explicit multi-select (Priority 4). Every action here
@@ -20,8 +22,8 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
   const allTags = useLiveQuery<Keyword[]>(() => db.keywords.toArray(), [dataVersion], []);
 
   const [transposeValue, setTransposeValue] = useState(0);
-  const [demandValue, setDemandValue] = useState(5);
-  const [reliabilityValue, setReliabilityValue] = useState(5);
+  const [demandValue, setDemandValue] = useState<RatingValue>(MID_SCALE);
+  const [reliabilityValue, setReliabilityValue] = useState<RatingValue>(MID_SCALE);
   const [tagIdsToAdd, setTagIdsToAdd] = useState<Set<string>>(new Set());
   const [newTagName, setNewTagName] = useState('');
   const [busy, setBusy] = useState(false);

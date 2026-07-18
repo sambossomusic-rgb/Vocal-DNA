@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion } from '../../db/dataVersion';
@@ -14,28 +14,31 @@ import type {
   SongKeyword,
 } from '../../types/domain';
 import { SongCard } from './SongCard';
-import { FilterPanel, type FilterState } from './FilterPanel';
+import { FilterPanel, type FilterState, EMPTY_FILTERS } from './FilterPanel';
 import { BatchActionsBar } from './BatchActionsBar';
 
 interface Props {
   onOpenSong: (songId: string) => void;
+  // Set by App.tsx when navigating in from a Statistics/Voice Profile
+  // report (Priority 4: "every analysis should become navigation").
+  pendingFilter?: FilterState | null;
+  onConsumePendingFilter?: () => void;
 }
 
-const EMPTY_FILTERS: FilterState = {
-  folderId: null,
-  playlistId: null,
-  artistId: null,
-  keyNote: null,
-  status: null,
-  tagIds: [],
-};
-
-export function LibraryView({ onOpenSong }: Props): JSX.Element {
+export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter }: Props): JSX.Element {
   const dataVersion = useDataVersion();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (pendingFilter) {
+      setFilters(pendingFilter);
+      onConsumePendingFilter?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFilter]);
 
   const songs = useLiveQuery<Song[]>(() => db.songs.toArray(), [dataVersion], []);
   const artists = useLiveQuery<Artist[]>(() => db.artists.toArray(), [dataVersion], []);
@@ -90,6 +93,7 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
         const songTagIds = tagIdsBySongId.get(song.id) ?? [];
         if (!filters.tagIds.every((tagId) => songTagIds.includes(tagId))) return false;
       }
+      if (filters.songIds && !filters.songIds.includes(song.id)) return false;
       return true;
     });
   }, [songs, query, filters, artistById, ratingBySongId, tagIdsBySongId, songIdsByPlaylistId]);

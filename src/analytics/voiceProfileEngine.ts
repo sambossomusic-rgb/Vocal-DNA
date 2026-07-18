@@ -19,6 +19,7 @@ export interface RepertoireQuadrant {
 }
 
 export interface FatigueTrendPoint {
+  songId: string;
   ratedAt: string;
   songTitle: string;
   fatigue: number;
@@ -31,10 +32,10 @@ export interface VoiceProfileSnapshot {
   transposePatterns: TransposePattern[]; // sorted by songCount desc
   averageTranspose: number | null;
   quadrants: RepertoireQuadrant[];
-  fatigueTrend: FatigueTrendPoint[]; // last N rated songs, chronological
+  fatigueTrend: FatigueTrendPoint[]; // last N Pass-Two-rated songs, chronological
 }
 
-const MID_SCALE = 5; // midpoint of the 1-10 rating scale, used for quadrant splits
+const MID_SCALE = 3; // midpoint of the 1-5 rating scale, used for quadrant splits
 
 /**
  * Builds a Voice Profile purely from what the singer has actually recorded:
@@ -43,16 +44,27 @@ const MID_SCALE = 5; // midpoint of the 1-10 rating scale, used for quadrant spl
  * or vocal range from a recording — VocalDNA has no audio-analysis pipeline,
  * so the profile is an honest reflection of self-reported data, not a
  * fabricated acoustic measurement.
+ *
+ * Version 3's two-pass assessment (Demand/Reliability, then separately
+ * Enjoyment/Fatigue) means a rating can have one pair set and not the
+ * other — key/quadrant stats need Pass One complete, the fatigue trend
+ * needs Pass Two complete, and those two sets of songs may differ.
  */
 export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProfileSnapshot {
   const songById = new Map(songs.map((s) => [s.id, s]));
-  const ratedEntries = ratings
+  const withSong = ratings
     .map((r) => ({ rating: r, song: songById.get(r.songId) }))
     .filter((e): e is { rating: Rating; song: Song } => Boolean(e.song));
 
+  // Pass One complete: both Demand and Reliability set.
+  const passOneEntries = withSong.filter(
+    (e): e is { rating: Rating & { demand: number; reliability: number }; song: Song } =>
+      e.rating.demand !== null && e.rating.reliability !== null
+  );
+
   // --- Key-based reliability/demand ---
   const byKey = new Map<string, { reliabilitySum: number; demandSum: number; count: number }>();
-  for (const { rating, song } of ratedEntries) {
+  for (const { rating, song } of passOneEntries) {
     if (!song.keyNote) continue;
     const entry = byKey.get(song.keyNote) ?? { reliabilitySum: 0, demandSum: 0, count: 0 };
     entry.reliabilitySum += rating.reliability;
@@ -70,9 +82,9 @@ export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProf
   const strongestKeys = [...keyStats].sort((a, b) => b.averageReliability - a.averageReliability);
   const weakestKeys = [...keyStats].sort((a, b) => a.averageReliability - b.averageReliability);
 
-  // --- Transpose patterns ---
+  // --- Transpose patterns (transpose is always set, regardless of pass) ---
   const transposeCounts = new Map<number, number>();
-  for (const { rating } of ratedEntries) {
+  for (const { rating } of withSong) {
     transposeCounts.set(rating.transpose, (transposeCounts.get(rating.transpose) ?? 0) + 1);
   }
   const transposePatterns: TransposePattern[] = [...transposeCounts.entries()]
@@ -80,21 +92,19 @@ export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProf
     .sort((a, b) => b.songCount - a.songCount);
 
   const averageTranspose =
-    ratedEntries.length > 0
-      ? ratedEntries.reduce((acc, e) => acc + e.rating.transpose, 0) / ratedEntries.length
-      : null;
+    withSong.length > 0 ? withSong.reduce((acc, e) => acc + e.rating.transpose, 0) / withSong.length : null;
 
-  // --- Repertoire quadrants (demand x reliability) ---
-  const strongest = ratedEntries.filter(
+  // --- Repertoire quadrants (demand x reliability), Pass One songs only ---
+  const strongest = passOneEntries.filter(
     (e) => e.rating.reliability >= MID_SCALE + 1 && e.rating.demand <= MID_SCALE - 1
   );
-  const growing = ratedEntries.filter(
+  const growing = passOneEntries.filter(
     (e) => e.rating.reliability < MID_SCALE + 1 && e.rating.demand <= MID_SCALE - 1
   );
-  const needsWork = ratedEntries.filter(
+  const needsWork = passOneEntries.filter(
     (e) => e.rating.reliability < MID_SCALE + 1 && e.rating.demand > MID_SCALE - 1
   );
-  const comfortZone = ratedEntries.filter(
+  const comfortZone = passOneEntries.filter(
     (e) => e.rating.reliability >= MID_SCALE + 1 && e.rating.demand > MID_SCALE - 1
   );
 
@@ -121,18 +131,20 @@ export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProf
     },
   ];
 
-  // --- Fatigue trend, most recent 20 ratings chronologically ---
-  const fatigueTrend: FatigueTrendPoint[] = [...ratedEntries]
+  // --- Fatigue trend, most recent 20 Pass-Two-rated songs chronologically ---
+  const fatigueTrend: FatigueTrendPoint[] = withSong
+    .filter((e): e is { rating: Rating & { fatigue: number }; song: Song } => e.rating.fatigue !== null)
     .sort((a, b) => new Date(a.rating.ratedAt).getTime() - new Date(b.rating.ratedAt).getTime())
     .slice(-20)
     .map((e) => ({
+      songId: e.song.id,
       ratedAt: e.rating.ratedAt,
       songTitle: e.song.title,
       fatigue: e.rating.fatigue,
     }));
 
   return {
-    ratedSongCount: ratedEntries.length,
+    ratedSongCount: passOneEntries.length,
     strongestKeys,
     weakestKeys,
     transposePatterns,

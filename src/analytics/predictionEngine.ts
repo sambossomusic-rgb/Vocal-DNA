@@ -1,11 +1,13 @@
-import type { Rating, Song, RepertoireStatus } from '../types/domain';
+import type { Rating, Song, RepertoireStatus, RatingValue } from '../types/domain';
 import { REPERTOIRE_STATUSES } from '../types/domain';
 
 export interface TagLearning {
   tagId: string;
   sampleSize: number; // rated songs carrying this tag
-  averageDemand: number;
-  averageReliability: number;
+  demandSampleSize: number;
+  reliabilitySampleSize: number;
+  averageDemand: number | null;
+  averageReliability: number | null;
   statusCounts: Record<RepertoireStatus, number>;
 }
 
@@ -20,8 +22,8 @@ export interface GlobalLearning {
 export interface SongPrediction {
   songId: string;
   predictedStatus: RepertoireStatus | null;
-  predictedDemand: number | null;
-  predictedReliability: number | null;
+  predictedDemand: RatingValue | null;
+  predictedReliability: RatingValue | null;
   predictedTranspose: number | null;
   sampleSize: number; // how many prior ratings this prediction draws on
 }
@@ -42,29 +44,54 @@ function pickMode(counts: Record<RepertoireStatus, number>): RepertoireStatus | 
   return best;
 }
 
+/** Rounds and clamps a predicted average onto the 1-5 rating scale. */
+function toRatingValue(average: number): RatingValue {
+  return Math.min(5, Math.max(1, Math.round(average))) as RatingValue;
+}
+
 /**
  * Statistical learning per tag — no AI, just aggregates of the performer's
  * own prior ratings for every other song sharing a tag. This is what lets
  * "rate a few Country songs at Demand 4" turn into a default suggestion for
- * the next unrated Country song (Constitution Feature 4).
+ * the next unrated Country song (Constitution Feature 4). Demand/Reliability
+ * are counted independently since Version 3's two-pass assessment means a
+ * rating can have one set and not the other.
  */
 export function computeTagLearning(
   ratings: Rating[],
   songTagIds: Map<string, string[]>
 ): Map<string, TagLearning> {
-  const sums = new Map<string, { demandSum: number; reliabilitySum: number; count: number; statusCounts: Record<RepertoireStatus, number> }>();
+  const sums = new Map<
+    string,
+    {
+      demandSum: number;
+      demandCount: number;
+      reliabilitySum: number;
+      reliabilityCount: number;
+      count: number;
+      statusCounts: Record<RepertoireStatus, number>;
+    }
+  >();
 
   for (const rating of ratings) {
     const tagIds = songTagIds.get(rating.songId) ?? [];
     for (const tagId of tagIds) {
       const entry = sums.get(tagId) ?? {
         demandSum: 0,
+        demandCount: 0,
         reliabilitySum: 0,
+        reliabilityCount: 0,
         count: 0,
         statusCounts: emptyStatusCounts(),
       };
-      entry.demandSum += rating.demand;
-      entry.reliabilitySum += rating.reliability;
+      if (rating.demand !== null) {
+        entry.demandSum += rating.demand;
+        entry.demandCount += 1;
+      }
+      if (rating.reliability !== null) {
+        entry.reliabilitySum += rating.reliability;
+        entry.reliabilityCount += 1;
+      }
       entry.count += 1;
       entry.statusCounts[rating.status] += 1;
       sums.set(tagId, entry);
@@ -76,8 +103,10 @@ export function computeTagLearning(
     byTag.set(tagId, {
       tagId,
       sampleSize: entry.count,
-      averageDemand: entry.demandSum / entry.count,
-      averageReliability: entry.reliabilitySum / entry.count,
+      demandSampleSize: entry.demandCount,
+      reliabilitySampleSize: entry.reliabilityCount,
+      averageDemand: entry.demandCount > 0 ? entry.demandSum / entry.demandCount : null,
+      averageReliability: entry.reliabilityCount > 0 ? entry.reliabilitySum / entry.reliabilityCount : null,
       statusCounts: entry.statusCounts,
     });
   }
@@ -88,20 +117,28 @@ export function computeTagLearning(
 export function computeGlobalLearning(ratings: Rating[]): GlobalLearning {
   const statusCounts = emptyStatusCounts();
   let demandSum = 0;
+  let demandCount = 0;
   let reliabilitySum = 0;
+  let reliabilityCount = 0;
   let transposeSum = 0;
 
   for (const rating of ratings) {
     statusCounts[rating.status] += 1;
-    demandSum += rating.demand;
-    reliabilitySum += rating.reliability;
+    if (rating.demand !== null) {
+      demandSum += rating.demand;
+      demandCount += 1;
+    }
+    if (rating.reliability !== null) {
+      reliabilitySum += rating.reliability;
+      reliabilityCount += 1;
+    }
     transposeSum += rating.transpose;
   }
 
   return {
     sampleSize: ratings.length,
-    averageDemand: ratings.length > 0 ? demandSum / ratings.length : null,
-    averageReliability: ratings.length > 0 ? reliabilitySum / ratings.length : null,
+    averageDemand: demandCount > 0 ? demandSum / demandCount : null,
+    averageReliability: reliabilityCount > 0 ? reliabilitySum / reliabilityCount : null,
     averageTranspose: ratings.length > 0 ? transposeSum / ratings.length : null,
     statusCounts,
   };
@@ -143,7 +180,9 @@ export function predictForSong(
 
   const combinedStatusCounts = emptyStatusCounts();
   let demandWeightedSum = 0;
+  let demandWeight = 0;
   let reliabilityWeightedSum = 0;
+  let reliabilityWeight = 0;
   let totalSampleSize = 0;
 
   for (const tag of relevantTags) {
@@ -151,15 +190,21 @@ export function predictForSong(
     for (const status of REPERTOIRE_STATUSES) {
       combinedStatusCounts[status] += tag.statusCounts[status];
     }
-    demandWeightedSum += tag.averageDemand * tag.sampleSize;
-    reliabilityWeightedSum += tag.averageReliability * tag.sampleSize;
+    if (tag.averageDemand !== null) {
+      demandWeightedSum += tag.averageDemand * tag.demandSampleSize;
+      demandWeight += tag.demandSampleSize;
+    }
+    if (tag.averageReliability !== null) {
+      reliabilityWeightedSum += tag.averageReliability * tag.reliabilitySampleSize;
+      reliabilityWeight += tag.reliabilitySampleSize;
+    }
   }
 
   const predictedStatus = pickMode(combinedStatusCounts) ?? pickMode(globalLearning.statusCounts);
-  const predictedDemand =
-    totalSampleSize > 0 ? demandWeightedSum / totalSampleSize : globalLearning.averageDemand;
-  const predictedReliability =
-    totalSampleSize > 0 ? reliabilityWeightedSum / totalSampleSize : globalLearning.averageReliability;
+  const predictedDemandAverage =
+    demandWeight > 0 ? demandWeightedSum / demandWeight : globalLearning.averageDemand;
+  const predictedReliabilityAverage =
+    reliabilityWeight > 0 ? reliabilityWeightedSum / reliabilityWeight : globalLearning.averageReliability;
   const predictedTranspose =
     (song.keyNote ? keyTransposeAverages.get(song.keyNote) : undefined) ??
     globalLearning.averageTranspose ??
@@ -168,8 +213,9 @@ export function predictForSong(
   return {
     songId: song.id,
     predictedStatus,
-    predictedDemand: predictedDemand !== null ? Math.round(predictedDemand) : null,
-    predictedReliability: predictedReliability !== null ? Math.round(predictedReliability) : null,
+    predictedDemand: predictedDemandAverage !== null ? toRatingValue(predictedDemandAverage) : null,
+    predictedReliability:
+      predictedReliabilityAverage !== null ? toRatingValue(predictedReliabilityAverage) : null,
     predictedTranspose: predictedTranspose !== null ? Math.round(predictedTranspose) : null,
     sampleSize: totalSampleSize > 0 ? totalSampleSize : globalLearning.sampleSize,
   };

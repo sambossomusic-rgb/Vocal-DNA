@@ -2,6 +2,77 @@
 
 All notable changes to VocalDNA are recorded here.
 
+## [3.0.0] — Version 3
+
+### Rating scale
+
+- **Five-point scale replaces the 1-10 scale** for Demand, Reliability,
+  Enjoyment, and Fatigue — five large 1-tap buttons (Very Low / Low /
+  Average / Good / Excellent) instead of a 10-wide grid. Faster, more
+  decisive, less false precision.
+- Dexie bumped to version 4 with a data-only migration rescaling existing
+  1-10 ratings onto 1-5 (a clean 2:1 bucketing). Verified against the
+  actual multi-session upgrade path (Version 1 → 2 → 2.1 → 3, each step
+  through genuine Dexie code, matching how a real device experiences these
+  updates over time) — not just a synthetic fixture.
+- Demand/Reliability/Enjoyment/Fatigue are now nullable on `Rating`,
+  distinct from a real 1-5 value, so a song can have Pass One's fields set
+  and Pass Two's not yet (see below).
+
+### Two-stage assessment
+
+- The Assess tab now runs three phases in strict order: **Status** (unchanged
+  from Version 2) for every song, then **Pass One** (Demand & Reliability
+  only) for every Regular/Occasional song, then **Pass Two** (Enjoyment &
+  Fatigue only) — each phase fully completes across the whole library
+  before the next begins, so every pass stays a two-question decision
+  instead of a four-question one. Transpose and Notes moved to being edited
+  only from the detailed rating form.
+
+### Editable key
+
+- A song's Key is now editable from Song Detail via up/down arrows cycling
+  the chromatic scale. Writes only to VocalDNA's own `Song.keyNote` —
+  StageTraxx is never touched. (A future "songs recommended for a key
+  change" report was requested but deferred — it overlaps the explicitly
+  out-of-scope recommendation engine.)
+
+### Interactive reports
+
+- Every bar, row, and quadrant in Statistics and Voice Profile now
+  navigates: folders, keys, statuses, and artists jump to a matching
+  Library filter; repertoire-map quadrants and the fatigue trend jump to
+  the Library pre-filtered to exactly those songs. "Every analysis becomes
+  navigation."
+
+### Missing metadata report
+
+- Statistics now lists every song missing Key or BPM ("Metadata needing
+  completion"), each row opening that song directly, with a "View all in
+  Library" bulk link — so gaps can be fixed at the source in StageTraxx.
+
+### Smarter, safer import
+
+- Songs are now matched by StageTraxx ID first, then — only if that ID has
+  never been seen — by artist + title, so an ID changing between exports
+  can no longer create a duplicate record and orphan the original's
+  ratings/tags/history. Ratings, tags, notes-on-a-rating, status, and
+  transpose live in tables the importer never touches, so a re-import can
+  never erase an assessment.
+- The import summary now reports new/updated songs, "potential conflicts"
+  (songs matched by name instead of ID — worth a glance), songs removed
+  from this export (reported only — nothing is ever auto-deleted), duplicate
+  titles, and the missing-metadata count.
+- **Tracks removed** — StageTraxx is the performance-track player;
+  VocalDNA no longer imports or displays track data (the underlying table
+  is left alone, just unused going forward).
+
+### Deferred (Constitution "Long term — not yet")
+
+Recommended key changes, song recommendations, setlist/encore/fatigue
+prediction, and audience-based suggestions were explicitly requested for a
+*later* phase, not this one, and are not built.
+
 ## [2.1.0] — Version 2.1 (correctness pass)
 
 Focused entirely on making every Version 2 feature accurate, reliable, and

@@ -5,7 +5,7 @@ export interface StatsSnapshot {
   totalSongs: number;
   totalArtists: number;
   totalFolders: number;
-  songsPerFolder: Array<{ folderName: string; count: number }>;
+  songsPerFolder: Array<{ folderId: string | null; folderName: string; count: number }>;
   keyDistribution: Array<{ key: string; count: number }>;
   averageBpm: number | null;
   ratingCoverage: {
@@ -20,7 +20,14 @@ export interface StatsSnapshot {
     fatigue: number | null;
   };
   statusDistribution: Array<{ status: RepertoireStatus; count: number }>;
-  topArtistsBySongCount: Array<{ artistName: string; count: number }>;
+  topArtistsBySongCount: Array<{ artistId: string; artistName: string; count: number }>;
+  missingMetadata: Array<{
+    songId: string;
+    title: string;
+    artistName: string;
+    missingKey: boolean;
+    missingBpm: boolean;
+  }>;
 }
 
 const NOTE_LABELS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -47,13 +54,16 @@ export function computeStats(
   const ratingBySongId = new Map(ratings.map((r) => [r.songId, r]));
 
   // Songs per folder
-  const folderCounts = new Map<string, number>();
+  const folderCounts = new Map<string | null, number>();
   for (const song of songs) {
-    const name = song.folderId ? folderNameById.get(song.folderId) ?? 'Unknown folder' : 'No folder';
-    folderCounts.set(name, (folderCounts.get(name) ?? 0) + 1);
+    folderCounts.set(song.folderId, (folderCounts.get(song.folderId) ?? 0) + 1);
   }
   const songsPerFolder = [...folderCounts.entries()]
-    .map(([folderName, count]) => ({ folderName, count }))
+    .map(([folderId, count]) => ({
+      folderId,
+      folderName: folderId ? folderNameById.get(folderId) ?? 'Unknown folder' : 'No folder',
+      count,
+    }))
     .sort((a, b) => b.count - a.count);
 
   // Key distribution
@@ -80,11 +90,13 @@ export function computeStats(
   const unratedSongs = songs.length - ratedSongs;
   const percentRated = songs.length > 0 ? (ratedSongs / songs.length) * 100 : 0;
 
-  // Average rating dimensions (only across songs that have a rating)
-  const avg = (selector: (r: Rating) => number): number | null => {
-    if (ratings.length === 0) return null;
-    const sum = ratings.reduce((acc, r) => acc + selector(r), 0);
-    return sum / ratings.length;
+  // Average rating dimensions — only across ratings where that specific
+  // field has actually been set (Version 3's two-pass assessment means
+  // Demand/Reliability and Enjoyment/Fatigue can each be null independently).
+  const avg = (selector: (r: Rating) => number | null): number | null => {
+    const values = ratings.map(selector).filter((v): v is number => v !== null);
+    if (values.length === 0) return null;
+    return values.reduce((a, b) => a + b, 0) / values.length;
   };
 
   // Status distribution — ordered by repertoire priority (Regular first),
@@ -101,13 +113,24 @@ export function computeStats(
   const artistCounts = new Map<string, number>();
   for (const song of songs) {
     if (!song.artistId) continue;
-    const name = artistNameById.get(song.artistId) ?? 'Unknown artist';
-    artistCounts.set(name, (artistCounts.get(name) ?? 0) + 1);
+    artistCounts.set(song.artistId, (artistCounts.get(song.artistId) ?? 0) + 1);
   }
   const topArtistsBySongCount = [...artistCounts.entries()]
-    .map(([artistName, count]) => ({ artistName, count }))
+    .map(([artistId, count]) => ({ artistId, artistName: artistNameById.get(artistId) ?? 'Unknown artist', count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 10);
+
+  // Missing metadata (Constitution Priority 6) — songs missing Key or BPM,
+  // surfaced so they can be fixed at the source in StageTraxx.
+  const missingMetadata = songs
+    .filter((s) => !s.keyNote || !s.bpm)
+    .map((s) => ({
+      songId: s.id,
+      title: s.title,
+      artistName: s.artistId ? artistNameById.get(s.artistId) ?? 'Unknown artist' : 'Unknown artist',
+      missingKey: !s.keyNote,
+      missingBpm: !s.bpm,
+    }));
 
   return {
     totalSongs: songs.length,
@@ -125,5 +148,6 @@ export function computeStats(
     },
     statusDistribution,
     topArtistsBySongCount,
+    missingMetadata,
   };
 }

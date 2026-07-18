@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { db } from '../../db/db';
 import { bumpDataVersion } from '../../db/dataVersion';
-import type { Rating, RepertoireStatus } from '../../types/domain';
+import type { Rating, RepertoireStatus, RatingValue } from '../../types/domain';
 import { createDefaultRating } from '../../types/domain';
 import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 import { StatusPicker } from '../../components/StatusPicker';
@@ -13,10 +13,12 @@ interface Props {
 
 export function RatingForm({ songId, existingRating }: Props): JSX.Element {
   const defaults = createDefaultRating(songId);
-  const [demand, setDemand] = useState(existingRating?.demand ?? defaults.demand);
-  const [reliability, setReliability] = useState(existingRating?.reliability ?? defaults.reliability);
-  const [enjoyment, setEnjoyment] = useState(existingRating?.enjoyment ?? defaults.enjoyment);
-  const [fatigue, setFatigue] = useState(existingRating?.fatigue ?? defaults.fatigue);
+  const [demand, setDemand] = useState<RatingValue | null>(existingRating?.demand ?? defaults.demand);
+  const [reliability, setReliability] = useState<RatingValue | null>(
+    existingRating?.reliability ?? defaults.reliability
+  );
+  const [enjoyment, setEnjoyment] = useState<RatingValue | null>(existingRating?.enjoyment ?? defaults.enjoyment);
+  const [fatigue, setFatigue] = useState<RatingValue | null>(existingRating?.fatigue ?? defaults.fatigue);
   const [transpose, setTranspose] = useState(existingRating?.transpose ?? defaults.transpose);
   const [status, setStatus] = useState<RepertoireStatus>(existingRating?.status ?? defaults.status);
   const [notes, setNotes] = useState(existingRating?.notes ?? defaults.notes);
@@ -47,8 +49,11 @@ export function RatingForm({ songId, existingRating }: Props): JSX.Element {
       </div>
       <StatusPicker value={status} onChange={setStatus} />
 
+      <div className="section-title">Pass One — Demand &amp; Reliability</div>
       <ScaleButtonGrid label="Demand" value={demand} onChange={setDemand} />
       <ScaleButtonGrid label="Reliability" value={reliability} onChange={setReliability} />
+
+      <div className="section-title">Pass Two — Enjoyment &amp; Fatigue</div>
       <ScaleButtonGrid label="Enjoyment" value={enjoyment} onChange={setEnjoyment} />
       <ScaleButtonGrid label="Fatigue" value={fatigue} onChange={setFatigue} />
 
