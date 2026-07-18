@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
-import type { Song, Artist, Rating, SongKeyword, PerformanceFrequency } from '../../types/domain';
-import { createDefaultRating } from '../../types/domain';
+import type { Song, Artist, Rating, SongKeyword, RepertoireStatus } from '../../types/domain';
+import { createDefaultRating, REPERTOIRE_STATUS_LABELS } from '../../types/domain';
 import {
   computeTagLearning,
   computeGlobalLearning,
@@ -14,16 +14,10 @@ import { computeProgress } from '../../analytics/progressEngine';
 import { QuickAssessCard } from './QuickAssessCard';
 import { FollowUpCard } from './FollowUpCard';
 
-const FREQUENCY_LABELS: Record<PerformanceFrequency, string> = {
-  regular: '🎤 Regular',
-  occasional: '🎵 Occasional',
-  learning: '📚 Learning',
-  never: '🚫 Never',
-};
-
 /**
  * Constitution Features 1, 2, 4, 5, 6 — the fast path through a library.
- * The queue is always "songs with no performanceFrequency yet", recomputed
+ * The queue is always "songs with no rating row at all yet" (no rating row
+ * means Unexplored by default, without needing to write one), recomputed
  * from live data, so answering a song naturally advances to the next one
  * without any manual index bookkeeping.
  */
@@ -56,7 +50,7 @@ export function AssessView(): JSX.Element {
 
   const queue = useMemo(() => {
     return songs
-      .filter((song) => !answeredIds.has(song.id) && !ratingBySongId.get(song.id)?.performanceFrequency)
+      .filter((song) => !answeredIds.has(song.id) && !ratingBySongId.has(song.id))
       .sort((a, b) => {
         const artistA = a.artistId ? artistById.get(a.artistId)?.name ?? '' : '';
         const artistB = b.artistId ? artistById.get(b.artistId)?.name ?? '' : '';
@@ -93,18 +87,18 @@ export function AssessView(): JSX.Element {
     setStage('quick');
   }
 
-  async function handleQuickAnswer(frequency: PerformanceFrequency): Promise<void> {
+  async function handleQuickAnswer(status: RepertoireStatus): Promise<void> {
     if (!currentSongId) return;
     const existing = await db.ratings.get(currentSongId);
     const next: Rating = {
       ...(existing ?? createDefaultRating(currentSongId)),
-      performanceFrequency: frequency,
+      status,
       ratedAt: new Date().toISOString(),
     };
     await db.ratings.put(next);
     bumpDataVersion();
 
-    if (frequency === 'regular' || frequency === 'occasional') {
+    if (status === 'regular' || status === 'occasional') {
       setStage('followup');
     } else {
       advanceToNext(currentSongId);
@@ -163,7 +157,7 @@ export function AssessView(): JSX.Element {
         </div>
         <div className="card">
           <div className="stat-number" style={{ fontSize: 20 }}>
-            {progress.mostCommonFrequency ? FREQUENCY_LABELS[progress.mostCommonFrequency] : '—'}
+            {progress.mostCommonStatus ? REPERTOIRE_STATUS_LABELS[progress.mostCommonStatus] : '—'}
           </div>
           <div className="stat-label">Most common status</div>
         </div>

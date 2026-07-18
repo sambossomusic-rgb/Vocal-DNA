@@ -168,6 +168,7 @@ select:focus {
 }
 
 .song-card {
+  position: relative;
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -206,24 +207,20 @@ select:focus {
   border: 1px solid var(--border);
 }
 
-.pill-status-new {
-  color: var(--text-dim);
+.pill-status-regular {
+  color: var(--success);
+  border-color: var(--success);
+}
+.pill-status-occasional {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 .pill-status-learning {
   color: var(--warning);
   border-color: var(--warning);
 }
-.pill-status-ready {
-  color: var(--accent);
-  border-color: var(--accent);
-}
-.pill-status-performance-ready {
-  color: var(--success);
-  border-color: var(--success);
-}
-.pill-status-retired {
-  color: var(--danger);
-  border-color: var(--danger);
+.pill-status-unexplored {
+  color: var(--text-dim);
 }
 
 .stat-grid {
@@ -336,6 +333,65 @@ h3 {
 
 .quick-assess-emoji {
   font-size: 32px;
+}
+
+.quick-assess-button-selected {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+}
+
+.scale-button-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.scale-button {
+  min-height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.scale-button:active {
+  background: var(--accent-dim);
+}
+
+.scale-button-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: white;
+}
+
+.song-card-selected {
+  border-color: var(--accent);
+  background: var(--accent-dim);
+}
+
+.song-card-checkmark {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 2px solid var(--border);
+  background: var(--bg-elevated);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: white;
+}
+
+.song-card-checkmark-checked {
+  background: var(--accent);
+  border-color: var(--accent);
 }
 
 .tag-chip {

@@ -1,30 +1,46 @@
-import type { Artist, Folder, Keyword, SongStatus } from '../../types/domain';
-import { SONG_STATUSES } from '../../types/domain';
+import type { Artist, Folder, Keyword, Playlist, RepertoireStatus } from '../../types/domain';
+import { REPERTOIRE_STATUSES, REPERTOIRE_STATUS_LABELS } from '../../types/domain';
 
 export interface FilterState {
   folderId: string | null;
+  playlistId: string | null;
   artistId: string | null;
   keyNote: string | null;
-  status: SongStatus | null;
+  status: RepertoireStatus | null;
   tagIds: string[]; // a song must carry every selected tag (AND)
 }
 
 interface Props {
   artists: Artist[];
   folders: Folder[];
+  playlists: Playlist[];
   availableKeys: string[];
   tags: Keyword[];
   value: FilterState;
   onChange: (next: FilterState) => void;
 }
 
-export function FilterPanel({ artists, folders, availableKeys, tags, value, onChange }: Props): JSX.Element {
+export function FilterPanel({
+  artists,
+  folders,
+  playlists,
+  availableKeys,
+  tags,
+  value,
+  onChange,
+}: Props): JSX.Element {
   const sortedArtists = [...artists].sort((a, b) => a.name.localeCompare(b.name));
   const sortedFolders = [...folders].sort((a, b) => a.name.localeCompare(b.name));
+  const sortedPlaylists = [...playlists].sort((a, b) => a.name.localeCompare(b.name));
   const sortedTags = [...tags].sort((a, b) => a.name.localeCompare(b.name));
 
   const hasActiveFilters =
-    value.folderId || value.artistId || value.keyNote || value.status || value.tagIds.length > 0;
+    value.folderId ||
+    value.playlistId ||
+    value.artistId ||
+    value.keyNote ||
+    value.status ||
+    value.tagIds.length > 0;
 
   function toggleTag(tagId: string): void {
     const active = value.tagIds.includes(tagId);
@@ -49,6 +65,21 @@ export function FilterPanel({ artists, folders, availableKeys, tags, value, onCh
             </option>
           ))}
         </select>
+
+        {sortedPlaylists.length > 0 && (
+          <select
+            className="select-input"
+            value={value.playlistId ?? ''}
+            onChange={(e) => onChange({ ...value, playlistId: e.target.value || null })}
+          >
+            <option value="">All playlists</option>
+            {sortedPlaylists.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        )}
 
         <select
           className="select-input"
@@ -80,13 +111,13 @@ export function FilterPanel({ artists, folders, availableKeys, tags, value, onCh
           className="select-input"
           value={value.status ?? ''}
           onChange={(e) =>
-            onChange({ ...value, status: (e.target.value as SongStatus) || null })
+            onChange({ ...value, status: (e.target.value as RepertoireStatus) || null })
           }
         >
           <option value="">All statuses</option>
-          {SONG_STATUSES.map((s) => (
+          {REPERTOIRE_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {s.replace('-', ' ')}
+              {REPERTOIRE_STATUS_LABELS[s]}
             </option>
           ))}
         </select>
@@ -95,7 +126,14 @@ export function FilterPanel({ artists, folders, availableKeys, tags, value, onCh
           <button
             className="button-secondary"
             onClick={() =>
-              onChange({ folderId: null, artistId: null, keyNote: null, status: null, tagIds: [] })
+              onChange({
+                folderId: null,
+                playlistId: null,
+                artistId: null,
+                keyNote: null,
+                status: null,
+                tagIds: [],
+              })
             }
           >
             Clear filters

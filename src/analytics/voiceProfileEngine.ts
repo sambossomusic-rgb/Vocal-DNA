@@ -1,10 +1,10 @@
 import type { Song, Rating } from '../types/domain';
 
-export interface KeyConfidence {
+export interface KeyReliability {
   key: string;
   songCount: number;
-  averageConfidence: number;
-  averageDifficulty: number;
+  averageReliability: number;
+  averageDemand: number;
 }
 
 export interface TransposePattern {
@@ -26,23 +26,23 @@ export interface FatigueTrendPoint {
 
 export interface VoiceProfileSnapshot {
   ratedSongCount: number;
-  strongestKeys: KeyConfidence[]; // sorted by averageConfidence desc
-  mostDifficultKeys: KeyConfidence[]; // sorted by averageDifficulty desc
+  strongestKeys: KeyReliability[]; // sorted by averageReliability desc
+  weakestKeys: KeyReliability[]; // sorted by averageReliability asc
   transposePatterns: TransposePattern[]; // sorted by songCount desc
   averageTranspose: number | null;
   quadrants: RepertoireQuadrant[];
   fatigueTrend: FatigueTrendPoint[]; // last N rated songs, chronological
 }
 
-const MID_SCALE = 3; // midpoint of the 1-5 rating scale, used for quadrant splits
+const MID_SCALE = 5; // midpoint of the 1-10 rating scale, used for quadrant splits
 
 /**
  * Builds a Voice Profile purely from what the singer has actually recorded:
- * their own difficulty/confidence/enjoyment/fatigue/transpose ratings, joined
+ * their own demand/reliability/enjoyment/fatigue/transpose ratings, joined
  * against each song's key. This deliberately does NOT claim to analyze audio
- * or vocal range from a recording — VocalDNA has no audio-analysis pipeline
- * in Version 1, so the profile is an honest reflection of self-reported data,
- * not a fabricated acoustic measurement.
+ * or vocal range from a recording — VocalDNA has no audio-analysis pipeline,
+ * so the profile is an honest reflection of self-reported data, not a
+ * fabricated acoustic measurement.
  */
 export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProfileSnapshot {
   const songById = new Map(songs.map((s) => [s.id, s]));
@@ -50,27 +50,25 @@ export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProf
     .map((r) => ({ rating: r, song: songById.get(r.songId) }))
     .filter((e): e is { rating: Rating; song: Song } => Boolean(e.song));
 
-  // --- Key-based confidence/difficulty ---
-  const byKey = new Map<string, { confidenceSum: number; difficultySum: number; count: number }>();
+  // --- Key-based reliability/demand ---
+  const byKey = new Map<string, { reliabilitySum: number; demandSum: number; count: number }>();
   for (const { rating, song } of ratedEntries) {
     if (!song.keyNote) continue;
-    const entry = byKey.get(song.keyNote) ?? { confidenceSum: 0, difficultySum: 0, count: 0 };
-    entry.confidenceSum += rating.confidence;
-    entry.difficultySum += rating.difficulty;
+    const entry = byKey.get(song.keyNote) ?? { reliabilitySum: 0, demandSum: 0, count: 0 };
+    entry.reliabilitySum += rating.reliability;
+    entry.demandSum += rating.demand;
     entry.count += 1;
     byKey.set(song.keyNote, entry);
   }
-  const keyStats: KeyConfidence[] = [...byKey.entries()].map(([key, v]) => ({
+  const keyStats: KeyReliability[] = [...byKey.entries()].map(([key, v]) => ({
     key,
     songCount: v.count,
-    averageConfidence: v.confidenceSum / v.count,
-    averageDifficulty: v.difficultySum / v.count,
+    averageReliability: v.reliabilitySum / v.count,
+    averageDemand: v.demandSum / v.count,
   }));
 
-  const strongestKeys = [...keyStats].sort((a, b) => b.averageConfidence - a.averageConfidence);
-  const mostDifficultKeys = [...keyStats].sort(
-    (a, b) => b.averageDifficulty - a.averageDifficulty
-  );
+  const strongestKeys = [...keyStats].sort((a, b) => b.averageReliability - a.averageReliability);
+  const weakestKeys = [...keyStats].sort((a, b) => a.averageReliability - b.averageReliability);
 
   // --- Transpose patterns ---
   const transposeCounts = new Map<number, number>();
@@ -86,39 +84,39 @@ export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProf
       ? ratedEntries.reduce((acc, e) => acc + e.rating.transpose, 0) / ratedEntries.length
       : null;
 
-  // --- Repertoire quadrants (difficulty x confidence) ---
+  // --- Repertoire quadrants (demand x reliability) ---
   const strongest = ratedEntries.filter(
-    (e) => e.rating.confidence >= MID_SCALE + 1 && e.rating.difficulty <= MID_SCALE - 1
+    (e) => e.rating.reliability >= MID_SCALE + 1 && e.rating.demand <= MID_SCALE - 1
   );
   const growing = ratedEntries.filter(
-    (e) => e.rating.confidence < MID_SCALE + 1 && e.rating.difficulty <= MID_SCALE - 1
+    (e) => e.rating.reliability < MID_SCALE + 1 && e.rating.demand <= MID_SCALE - 1
   );
   const needsWork = ratedEntries.filter(
-    (e) => e.rating.confidence < MID_SCALE + 1 && e.rating.difficulty > MID_SCALE - 1
+    (e) => e.rating.reliability < MID_SCALE + 1 && e.rating.demand > MID_SCALE - 1
   );
   const comfortZone = ratedEntries.filter(
-    (e) => e.rating.confidence >= MID_SCALE + 1 && e.rating.difficulty > MID_SCALE - 1
+    (e) => e.rating.reliability >= MID_SCALE + 1 && e.rating.demand > MID_SCALE - 1
   );
 
   const quadrants: RepertoireQuadrant[] = [
     {
       label: 'Strongest',
-      description: 'High confidence, low difficulty — reliable performance material.',
+      description: 'High reliability, lower demand — steady, dependable material.',
       songIds: strongest.map((e) => e.song.id),
     },
     {
       label: 'Comfort zone',
-      description: 'High confidence despite real difficulty — hard-won strengths.',
+      description: 'High reliability despite high demand — hard-won strengths.',
       songIds: comfortZone.map((e) => e.song.id),
     },
     {
       label: 'Growing',
-      description: 'Lower difficulty but confidence still building.',
+      description: 'Lower demand, reliability still building.',
       songIds: growing.map((e) => e.song.id),
     },
     {
       label: 'Needs work',
-      description: 'High difficulty and low confidence — priority practice targets.',
+      description: 'High demand but reliability still building — priority practice targets.',
       songIds: needsWork.map((e) => e.song.id),
     },
   ];
@@ -136,7 +134,7 @@ export function computeVoiceProfile(songs: Song[], ratings: Rating[]): VoiceProf
   return {
     ratedSongCount: ratedEntries.length,
     strongestKeys,
-    mostDifficultKeys,
+    weakestKeys,
     transposePatterns,
     averageTranspose,
     quadrants,

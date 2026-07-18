@@ -84,6 +84,8 @@ export function ImportView({ onImportComplete }: Props): JSX.Element {
             <li>Folders inserted: {status.summary.foldersInserted}</li>
             <li>Tracks inserted: {status.summary.tracksInserted}</li>
             <li>Tracks updated: {status.summary.tracksUpdated}</li>
+            <li>Playlists inserted: {status.summary.playlistsInserted}</li>
+            <li>Playlist-song links inserted: {status.summary.playlistItemsInserted}</li>
           </ul>
 
           <button

@@ -21,12 +21,12 @@ export function VoiceProfileView({ onOpenSong }: Props): JSX.Element {
     return (
       <div className="empty-state">
         Rate some songs first — your Voice Profile is built entirely from your own
-        difficulty/confidence/enjoyment/fatigue/transpose ratings, so it has nothing to show yet.
+        demand/reliability/enjoyment/fatigue/transpose ratings, so it has nothing to show yet.
       </div>
     );
   }
 
-  const maxKeyConfidence = Math.max(1, ...profile.strongestKeys.map((k) => k.averageConfidence));
+  const maxKeyReliability = Math.max(1, ...profile.strongestKeys.map((k) => k.averageReliability));
   const maxTransposeCount = Math.max(1, ...profile.transposePatterns.map((t) => t.songCount));
 
   return (
@@ -37,7 +37,7 @@ export function VoiceProfileView({ onOpenSong }: Props): JSX.Element {
       </p>
 
       <div className="section-title" style={{ marginTop: 0 }}>
-        Strongest keys (by confidence)
+        Strongest keys (by reliability)
       </div>
       <div className="card">
         {profile.strongestKeys.slice(0, 8).map((k) => (
@@ -46,26 +46,26 @@ export function VoiceProfileView({ onOpenSong }: Props): JSX.Element {
             <div className="bar-track">
               <div
                 className="bar-fill"
-                style={{ width: `${(k.averageConfidence / maxKeyConfidence) * 100}%` }}
+                style={{ width: `${(k.averageReliability / maxKeyReliability) * 100}%` }}
               />
             </div>
-            <div style={{ width: 90, textAlign: 'right', fontSize: 12, color: 'var(--text-dim)' }}>
-              conf {k.averageConfidence.toFixed(1)} · {k.songCount} song{k.songCount === 1 ? '' : 's'}
+            <div style={{ width: 100, textAlign: 'right', fontSize: 12, color: 'var(--text-dim)' }}>
+              reliability {k.averageReliability.toFixed(1)} · {k.songCount} song{k.songCount === 1 ? '' : 's'}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="section-title">Most challenging keys (by difficulty)</div>
+      <div className="section-title">Weakest keys (by reliability)</div>
       <div className="card">
-        {profile.mostDifficultKeys.slice(0, 8).map((k) => (
+        {profile.weakestKeys.slice(0, 8).map((k) => (
           <div
             key={k.key}
             style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}
           >
             <span>Key {k.key}</span>
             <span style={{ color: 'var(--text-dim)' }}>
-              difficulty {k.averageDifficulty.toFixed(1)} · {k.songCount} song
+              reliability {k.averageReliability.toFixed(1)} · {k.songCount} song
               {k.songCount === 1 ? '' : 's'}
             </span>
           </div>

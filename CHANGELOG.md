@@ -2,6 +2,71 @@
 
 All notable changes to VocalDNA are recorded here.
 
+## [2.1.0] — Version 2.1 (correctness pass)
+
+Focused entirely on making every Version 2 feature accurate, reliable, and
+fast — no redesign, no new speculative features.
+
+### Fixed — data model consolidation
+
+Version 2 statistics looked wrong because Quick Assessment wrote to
+`demand`/`reliability` while the detailed rating form wrote to a separate
+`difficulty`/`confidence` (both left at their default of 3 unless touched),
+so most rated songs showed a constant "3.0" average on fields nobody had
+actually edited. There is now exactly one set of fields:
+
+- `Rating.demand`/`reliability`/`enjoyment`/`fatigue` — all 1-10, all
+  editable from every rating surface (Quick Assessment follow-up, detailed
+  rating form, batch actions). Difficulty/Confidence are gone; Enjoyment and
+  Fatigue moved from 1-5 to the same 1-10 scale.
+- `Rating.status: RepertoireStatus` (`regular` / `occasional` / `learning` /
+  `unexplored`) replaces both Version 1's five-value workflow `SongStatus`
+  and Version 2's separate `performanceFrequency` — there was no reason for
+  a song to have two different "status" concepts that never agreed with
+  each other. "Unexplored" means "not yet in rotation," not "bad," and is
+  the implicit default for any song with no rating row at all.
+- Dexie bumped to version 3 with a data-only migration (no schema/index
+  changes) that rescales existing 1-5 values onto 1-10 and maps old
+  status/performanceFrequency combinations onto the new single status,
+  preferring the more specific Version 2 signal where both exist. Verified
+  end-to-end against a hand-built legacy-shaped database.
+- Statistics, Voice Profile ("Strongest keys" / "Weakest keys", both now by
+  Reliability), and the Assess progress dashboard all read from these
+  consolidated fields, so every number reflects real ratings — nothing
+  hardcoded or duplicated.
+- Status breakdowns are now ordered by repertoire priority (Regular →
+  Occasional → Learning → Unexplored), not by count.
+
+### Added
+
+- **Sliders replaced with 1-tap button grids** (`ScaleButtonGrid`,
+  `StatusPicker`) everywhere a rating is entered — faster and more precise
+  on iPad than dragging a slider.
+- **Real multi-select batch editing** (Library "Select" mode) — tap
+  individual songs, or filter to a folder/playlist and "Select all shown",
+  then deselect individual songs from that selection. Six batch actions,
+  each touching only the field it's responsible for: Change Status, Set
+  Demand, Set Reliability, Set Transpose, Add Tags (never removes existing
+  tags), and Clear Ratings.
+- **Playlists** — StageTraxx playlists are now actually imported (the
+  `playlists`/`playlistItems` tables were reserved but never populated in
+  Version 1) and filterable in the Library alongside Folder. The exact
+  StageTraxx JSON field names for playlist-song links haven't been
+  confirmed against a real export, so the importer tries the same
+  `songID`/`playlistID` convention used elsewhere and reports
+  playlists/playlist-links found so a mismatch would be visible immediately
+  rather than silently importing nothing.
+- Filters (Search/Folder/Playlist/Artist/Key/Status/Tags) all compose
+  together (logical AND) in the Library.
+
+### Removed
+
+- Lyrics are no longer shown on the Song Detail page — StageTraxx is the
+  lyrics/chart viewer; VocalDNA is performance intelligence, not a
+  duplicate. The underlying `Song.lyrics` field is untouched (still
+  imported, just not displayed) since nothing needed it removed from the
+  database.
+
 ## [2.0.0] — Version 2 (speed & assessment)
 
 Built per the VocalDNA Constitution: every change targets the mission of

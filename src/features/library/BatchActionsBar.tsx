@@ -1,105 +1,152 @@
 import { useState } from 'react';
 import { db } from '../../db/db';
-import { bumpDataVersion } from '../../db/dataVersion';
-import type { Song, Rating, PerformanceFrequency } from '../../types/domain';
-import { createDefaultRating } from '../../types/domain';
+import { useLiveQuery } from '../../db/useLiveQuery';
+import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
+import type { Song, Rating, RepertoireStatus, Keyword } from '../../types/domain';
+import { createDefaultRating, REPERTOIRE_STATUSES, REPERTOIRE_STATUS_LABELS } from '../../types/domain';
+import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 
 interface Props {
-  songs: Song[]; // the currently filtered/searched set shown in the Library
+  songs: Song[]; // the explicitly selected songs (Constitution Priority 4)
 }
 
-const FREQUENCY_BUTTONS: Array<{ frequency: PerformanceFrequency; label: string }> = [
-  { frequency: 'regular', label: '🎤 Mark Regular' },
-  { frequency: 'occasional', label: '🎵 Mark Occasional' },
-  { frequency: 'learning', label: '📚 Mark Learning' },
-  { frequency: 'never', label: '🚫 Mark Never' },
-];
-
 /**
- * Batch updates for whatever set of songs the Library's search + filters
- * currently show (folder, artist, tag, search results — Constitution
- * Feature 3). Playlists are reserved but not yet buildable in this version,
- * so batch-by-playlist isn't offered until that feature exists.
+ * Batch edits for an explicit multi-select (Priority 4). Every action here
+ * only ever patches the one field it's responsible for — existing fields on
+ * each song's rating are always preserved via spread, never overwritten.
  */
 export function BatchActionsBar({ songs }: Props): JSX.Element {
+  const dataVersion = useDataVersion();
+  const allTags = useLiveQuery<Keyword[]>(() => db.keywords.toArray(), [dataVersion], []);
+
   const [transposeValue, setTransposeValue] = useState(0);
-  const [notesValue, setNotesValue] = useState('');
+  const [demandValue, setDemandValue] = useState(5);
+  const [reliabilityValue, setReliabilityValue] = useState(5);
+  const [tagIdsToAdd, setTagIdsToAdd] = useState<Set<string>>(new Set());
+  const [newTagName, setNewTagName] = useState('');
   const [busy, setBusy] = useState(false);
 
   async function existingOrDefaultRating(songId: string): Promise<Rating> {
     return (await db.ratings.get(songId)) ?? createDefaultRating(songId);
   }
 
-  async function markAll(frequency: PerformanceFrequency): Promise<void> {
-    if (songs.length === 0) return;
-    if (!window.confirm(`Mark all ${songs.length} songs in view as "${frequency}"?`)) return;
+  async function patchAllRatings(patch: (rating: Rating) => Rating): Promise<void> {
     setBusy(true);
     await db.transaction('rw', db.ratings, async () => {
       for (const song of songs) {
         const rating = await existingOrDefaultRating(song.id);
-        await db.ratings.put({
-          ...rating,
-          performanceFrequency: frequency,
-          ratedAt: new Date().toISOString(),
-        });
+        await db.ratings.put(patch(rating));
       }
     });
     bumpDataVersion();
     setBusy(false);
+  }
+
+  async function changeStatus(status: RepertoireStatus): Promise<void> {
+    if (songs.length === 0) return;
+    if (!window.confirm(`Set status to "${REPERTOIRE_STATUS_LABELS[status]}" for ${songs.length} songs?`)) return;
+    await patchAllRatings((r) => ({ ...r, status, ratedAt: new Date().toISOString() }));
   }
 
   async function applyTranspose(): Promise<void> {
     if (songs.length === 0) return;
     const sign = transposeValue > 0 ? '+' : '';
-    if (!window.confirm(`Apply transpose ${sign}${transposeValue} to all ${songs.length} songs in view?`)) return;
+    if (!window.confirm(`Set transpose to ${sign}${transposeValue} for ${songs.length} songs?`)) return;
+    await patchAllRatings((r) => ({ ...r, transpose: transposeValue, ratedAt: new Date().toISOString() }));
+  }
+
+  async function applyDemand(): Promise<void> {
+    if (songs.length === 0) return;
+    if (!window.confirm(`Set Demand to ${demandValue} for ${songs.length} songs?`)) return;
+    await patchAllRatings((r) => ({ ...r, demand: demandValue, ratedAt: new Date().toISOString() }));
+  }
+
+  async function applyReliability(): Promise<void> {
+    if (songs.length === 0) return;
+    if (!window.confirm(`Set Reliability to ${reliabilityValue} for ${songs.length} songs?`)) return;
+    await patchAllRatings((r) => ({ ...r, reliability: reliabilityValue, ratedAt: new Date().toISOString() }));
+  }
+
+  async function clearRatings(): Promise<void> {
+    if (songs.length === 0) return;
+    if (!window.confirm(`Clear all ratings for ${songs.length} songs? This cannot be undone.`)) return;
     setBusy(true);
     await db.transaction('rw', db.ratings, async () => {
-      for (const song of songs) {
-        const rating = await existingOrDefaultRating(song.id);
-        await db.ratings.put({ ...rating, transpose: transposeValue, ratedAt: new Date().toISOString() });
-      }
+      for (const song of songs) await db.ratings.delete(song.id);
     });
     bumpDataVersion();
     setBusy(false);
   }
 
-  async function applyNotes(): Promise<void> {
-    const text = notesValue.trim();
-    if (!text || songs.length === 0) return;
-    if (!window.confirm(`Add this note to all ${songs.length} songs in view?`)) return;
+  function toggleTagToAdd(tagId: string): void {
+    setTagIdsToAdd((prev) => {
+      const next = new Set(prev);
+      if (next.has(tagId)) next.delete(tagId);
+      else next.add(tagId);
+      return next;
+    });
+  }
+
+  async function createTagToAdd(): Promise<void> {
+    const name = newTagName.trim();
+    if (!name) return;
+    const normalized = name.toLowerCase();
+    const existing = allTags.find((t) => t.name.toLowerCase() === normalized);
+    const tagId = existing?.id ?? crypto.randomUUID();
+    if (!existing) await db.keywords.put({ id: tagId, name });
+    setTagIdsToAdd((prev) => new Set(prev).add(tagId));
+    setNewTagName('');
+    bumpDataVersion();
+  }
+
+  async function applyTags(): Promise<void> {
+    if (songs.length === 0 || tagIdsToAdd.size === 0) return;
+    if (!window.confirm(`Add ${tagIdsToAdd.size} tag(s) to ${songs.length} songs?`)) return;
     setBusy(true);
-    await db.transaction('rw', db.ratings, async () => {
+    await db.transaction('rw', db.songKeywords, async () => {
       for (const song of songs) {
-        const rating = await existingOrDefaultRating(song.id);
-        const notes = rating.notes ? `${rating.notes}\n${text}` : text;
-        await db.ratings.put({ ...rating, notes, ratedAt: new Date().toISOString() });
+        for (const tagId of tagIdsToAdd) {
+          await db.songKeywords.put({ songId: song.id, keywordId: tagId });
+        }
       }
     });
     bumpDataVersion();
-    setNotesValue('');
+    setTagIdsToAdd(new Set());
     setBusy(false);
   }
 
   return (
     <div className="card" style={{ marginTop: 12, marginBottom: 20 }}>
       <div className="section-title" style={{ marginTop: 0 }}>
-        Batch actions · {songs.length} songs in view
+        Batch actions · {songs.length} selected
       </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-        {FREQUENCY_BUTTONS.map(({ frequency, label }) => (
+      <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>Change status</div>
+      <div className="quick-assess-grid" style={{ marginBottom: 18 }}>
+        {REPERTOIRE_STATUSES.map((status) => (
           <button
-            key={frequency}
-            className="button-secondary"
+            key={status}
+            className="quick-assess-button"
             disabled={busy}
-            onClick={() => markAll(frequency)}
+            onClick={() => changeStatus(status)}
+            style={{ minHeight: 56, flexDirection: 'row', fontSize: 14 }}
           >
-            {label}
+            {REPERTOIRE_STATUS_LABELS[status]}
           </button>
         ))}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
+      <ScaleButtonGrid label="Set Demand" value={demandValue} onChange={setDemandValue} />
+      <button className="button-primary" disabled={busy} onClick={applyDemand} style={{ marginBottom: 18 }}>
+        Apply Demand to all
+      </button>
+
+      <ScaleButtonGrid label="Set Reliability" value={reliabilityValue} onChange={setReliabilityValue} />
+      <button className="button-primary" disabled={busy} onClick={applyReliability} style={{ marginBottom: 18 }}>
+        Apply Reliability to all
+      </button>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
         <label style={{ fontSize: 14, color: 'var(--text-dim)' }}>Transpose</label>
         <button
           className="button-secondary"
@@ -123,22 +170,54 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
         </button>
       </div>
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>Add tags</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+        {allTags
+          .slice()
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((tag) => (
+            <button
+              key={tag.id}
+              className={`tag-chip ${tagIdsToAdd.has(tag.id) ? 'tag-chip-assigned' : ''}`}
+              onClick={() => toggleTagToAdd(tag.id)}
+            >
+              {tag.name}
+            </button>
+          ))}
+      </div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
         <input
           className="text-input"
-          placeholder="Note to add to all songs in view…"
-          value={notesValue}
-          onChange={(e) => setNotesValue(e.target.value)}
-          style={{ flex: 1, minWidth: 200 }}
+          placeholder="New tag…"
+          value={newTagName}
+          onChange={(e) => setNewTagName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') createTagToAdd();
+          }}
+          style={{ flex: 1 }}
         />
-        <button className="button-primary" disabled={busy || !notesValue.trim()} onClick={applyNotes}>
-          Apply
+        <button className="button-secondary" onClick={createTagToAdd}>
+          Add
         </button>
       </div>
+      <button
+        className="button-primary"
+        disabled={busy || tagIdsToAdd.size === 0}
+        onClick={applyTags}
+        style={{ marginBottom: 18 }}
+      >
+        Add {tagIdsToAdd.size > 0 ? tagIdsToAdd.size : ''} tag(s) to all
+      </button>
 
-      <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 10 }}>
-        Applies to whatever the current search, folder, artist, and tag filters show.
-        Playlist-based batches will be available once playlists are built.
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+        <button
+          className="button-secondary"
+          disabled={busy}
+          onClick={clearRatings}
+          style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+        >
+          Clear ratings for all selected
+        </button>
       </div>
     </div>
   );

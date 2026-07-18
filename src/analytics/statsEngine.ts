@@ -1,4 +1,5 @@
-import type { Song, Artist, Folder, Rating } from '../types/domain';
+import type { Song, Artist, Folder, Rating, RepertoireStatus } from '../types/domain';
+import { REPERTOIRE_STATUS_PRIORITY } from '../types/domain';
 
 export interface StatsSnapshot {
   totalSongs: number;
@@ -13,12 +14,12 @@ export interface StatsSnapshot {
     percentRated: number;
   };
   averageRatings: {
-    difficulty: number | null;
-    confidence: number | null;
+    demand: number | null;
+    reliability: number | null;
     enjoyment: number | null;
     fatigue: number | null;
   };
-  statusDistribution: Array<{ status: string; count: number }>;
+  statusDistribution: Array<{ status: RepertoireStatus; count: number }>;
   topArtistsBySongCount: Array<{ artistName: string; count: number }>;
 }
 
@@ -86,14 +87,15 @@ export function computeStats(
     return sum / ratings.length;
   };
 
-  // Status distribution
-  const statusCounts = new Map<string, number>();
+  // Status distribution — ordered by repertoire priority (Regular first),
+  // not by count, per the Constitution's status weighting.
+  const statusCounts = new Map<RepertoireStatus, number>();
   for (const rating of ratings) {
     statusCounts.set(rating.status, (statusCounts.get(rating.status) ?? 0) + 1);
   }
   const statusDistribution = [...statusCounts.entries()]
     .map(([status, count]) => ({ status, count }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => REPERTOIRE_STATUS_PRIORITY[b.status] - REPERTOIRE_STATUS_PRIORITY[a.status]);
 
   // Top artists by song count
   const artistCounts = new Map<string, number>();
@@ -116,8 +118,8 @@ export function computeStats(
     averageBpm,
     ratingCoverage: { ratedSongs, unratedSongs, percentRated },
     averageRatings: {
-      difficulty: avg((r) => r.difficulty),
-      confidence: avg((r) => r.confidence),
+      demand: avg((r) => r.demand),
+      reliability: avg((r) => r.reliability),
       enjoyment: avg((r) => r.enjoyment),
       fatigue: avg((r) => r.fatigue),
     },

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Song, Artist } from '../../types/domain';
 import type { SongPrediction } from '../../analytics/predictionEngine';
-import { ScaleSlider } from '../rating/RatingForm';
+import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 
 interface Props {
   song: Song;
@@ -37,8 +37,8 @@ export function FollowUpCard({ song, artist, prediction, onSave }: Props): JSX.E
         </div>
       )}
 
-      <ScaleSlider label="Demand" value={demand} onChange={setDemand} max={10} />
-      <ScaleSlider label="Reliability" value={reliability} onChange={setReliability} max={10} />
+      <ScaleButtonGrid label="Demand" value={demand} onChange={setDemand} />
+      <ScaleButtonGrid label="Reliability" value={reliability} onChange={setReliability} />
 
       <div className="slider-row">
         <label style={{ width: 110, fontSize: 14, color: 'var(--text-dim)' }}>Transpose</label>

@@ -1,16 +1,16 @@
-import type { Song, Artist, PerformanceFrequency } from '../../types/domain';
+import type { Song, Artist, RepertoireStatus } from '../../types/domain';
 
 interface Props {
   song: Song;
   artist?: Artist;
-  onAnswer: (frequency: PerformanceFrequency) => void;
+  onAnswer: (status: RepertoireStatus) => void;
 }
 
-const OPTIONS: Array<{ frequency: PerformanceFrequency; emoji: string; label: string }> = [
-  { frequency: 'regular', emoji: '🎤', label: 'Regular' },
-  { frequency: 'occasional', emoji: '🎵', label: 'Occasional' },
-  { frequency: 'learning', emoji: '📚', label: 'Learning' },
-  { frequency: 'never', emoji: '🚫', label: 'Never' },
+const OPTIONS: Array<{ status: RepertoireStatus; emoji: string; label: string }> = [
+  { status: 'regular', emoji: '🎤', label: 'Regular' },
+  { status: 'occasional', emoji: '🎵', label: 'Occasional' },
+  { status: 'learning', emoji: '📚', label: 'Learning' },
+  { status: 'unexplored', emoji: '🌱', label: 'Unexplored' },
 ];
 
 /** Constitution Feature 1 — one question, one tap, auto-advance. */
@@ -30,12 +30,8 @@ export function QuickAssessCard({ song, artist, onAnswer }: Props): JSX.Element 
       </div>
 
       <div className="quick-assess-grid">
-        {OPTIONS.map(({ frequency, emoji, label }) => (
-          <button
-            key={frequency}
-            className="quick-assess-button"
-            onClick={() => onAnswer(frequency)}
-          >
+        {OPTIONS.map(({ status, emoji, label }) => (
+          <button key={status} className="quick-assess-button" onClick={() => onAnswer(status)}>
             <span className="quick-assess-emoji">{emoji}</span>
             {label}
           </button>

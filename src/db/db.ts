@@ -5,6 +5,7 @@ import type {
   Song,
   Track,
   Rating,
+  RepertoireStatus,
   ExternalIdMapping,
   ImportLogEntry,
   Setting,
@@ -15,6 +16,54 @@ import type {
   VoiceProfileEntry,
   PerformanceHistoryEntry,
 } from '../types/domain';
+
+// Version 1/2 shape, before Version 2.1 consolidated it — only used to type
+// the upgrade function's input, never imported elsewhere.
+interface LegacyRatingRow {
+  difficulty?: number;
+  confidence?: number;
+  enjoyment?: number;
+  fatigue?: number;
+  status?: string;
+  performanceFrequency?: string;
+  demand?: number;
+  reliability?: number;
+}
+
+// Version 1's 1-5 scale mapped onto Version 2.1's 1-10 scale. Not a
+// "correct" conversion — there isn't one — just a reasonable, deterministic
+// spread so existing ratings remain meaningfully ordered after the upgrade.
+function scaleFiveToTen(value: number): number {
+  return Math.round(1 + ((value - 1) * 9) / 4);
+}
+
+// Prefers Version 2's `performanceFrequency` (a closer match to the new
+// status already) and falls back to Version 1's workflow-stage `status`
+// for rows that predate Version 2's Quick Assessment entirely.
+function migrateStatus(row: LegacyRatingRow): RepertoireStatus {
+  switch (row.performanceFrequency) {
+    case 'regular':
+      return 'regular';
+    case 'occasional':
+      return 'occasional';
+    case 'learning':
+      return 'learning';
+    case 'never':
+      return 'unexplored';
+    default:
+      break;
+  }
+  switch (row.status) {
+    case 'performance-ready':
+      return 'regular';
+    case 'ready':
+      return 'occasional';
+    case 'learning':
+      return 'learning';
+    default:
+      return 'unexplored'; // 'new', 'retired', or anything unrecognized
+  }
+}
 
 /**
  * VocalDNA's own IndexedDB database. Table names and shapes are the
@@ -74,6 +123,34 @@ export class VocalDnaDatabase extends Dexie {
     this.version(2).stores({
       performanceHistory: 'id, songId',
     });
+
+    // Version 2.1 consolidates Rating's split fields (difficulty/confidence
+    // vs. demand/reliability; workflow-stage status vs. performanceFrequency)
+    // into the single shape in types/domain.ts. No index changes — `status`
+    // is still just a string field, now with a different set of values — so
+    // this version only runs a data migration, no .stores() schema diff.
+    this.version(3)
+      .stores({})
+      .upgrade(async (tx) => {
+        await tx
+          .table('ratings')
+          .toCollection()
+          .modify((row: Rating & LegacyRatingRow) => {
+            const demand = typeof row.demand === 'number' ? row.demand : scaleFiveToTen(row.difficulty ?? 3);
+            const reliability =
+              typeof row.reliability === 'number' ? row.reliability : scaleFiveToTen(row.confidence ?? 3);
+
+            row.demand = demand;
+            row.reliability = reliability;
+            row.enjoyment = scaleFiveToTen(row.enjoyment ?? 3);
+            row.fatigue = scaleFiveToTen(row.fatigue ?? 3);
+            row.status = migrateStatus(row);
+
+            delete row.difficulty;
+            delete row.confidence;
+            delete row.performanceFrequency;
+          });
+      });
   }
 }
 

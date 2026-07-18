@@ -3,6 +3,7 @@ import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion } from '../../db/dataVersion';
 import type { Song, Artist, Folder, Rating } from '../../types/domain';
+import { REPERTOIRE_STATUS_LABELS } from '../../types/domain';
 import { computeStats } from '../../analytics/statsEngine';
 
 export function StatsView(): JSX.Element {
@@ -53,8 +54,8 @@ export function StatsView(): JSX.Element {
 
       <div className="section-title">Average ratings (across rated songs)</div>
       <div className="stat-grid">
-        <RatingAvgCard label="Difficulty" value={stats.averageRatings.difficulty} />
-        <RatingAvgCard label="Confidence" value={stats.averageRatings.confidence} />
+        <RatingAvgCard label="Demand" value={stats.averageRatings.demand} />
+        <RatingAvgCard label="Reliability" value={stats.averageRatings.reliability} />
         <RatingAvgCard label="Enjoyment" value={stats.averageRatings.enjoyment} />
         <RatingAvgCard label="Fatigue" value={stats.averageRatings.fatigue} />
       </div>
@@ -98,7 +99,7 @@ export function StatsView(): JSX.Element {
             key={s.status}
             style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}
           >
-            <span className={`pill pill-status-${s.status}`}>{s.status.replace('-', ' ')}</span>
+            <span className={`pill pill-status-${s.status}`}>{REPERTOIRE_STATUS_LABELS[s.status]}</span>
             <span>{s.count}</span>
           </div>
         ))}

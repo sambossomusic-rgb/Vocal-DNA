@@ -2,7 +2,17 @@ import { useMemo, useState } from 'react';
 import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion } from '../../db/dataVersion';
-import type { Song, Artist, Folder, Rating, SongStatus, Keyword, SongKeyword } from '../../types/domain';
+import type {
+  Song,
+  Artist,
+  Folder,
+  Playlist,
+  PlaylistItem,
+  Rating,
+  RepertoireStatus,
+  Keyword,
+  SongKeyword,
+} from '../../types/domain';
 import { SongCard } from './SongCard';
 import { FilterPanel, type FilterState } from './FilterPanel';
 import { BatchActionsBar } from './BatchActionsBar';
@@ -13,6 +23,7 @@ interface Props {
 
 const EMPTY_FILTERS: FilterState = {
   folderId: null,
+  playlistId: null,
   artistId: null,
   keyNote: null,
   status: null,
@@ -23,10 +34,14 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
   const dataVersion = useDataVersion();
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const songs = useLiveQuery<Song[]>(() => db.songs.toArray(), [dataVersion], []);
   const artists = useLiveQuery<Artist[]>(() => db.artists.toArray(), [dataVersion], []);
   const folders = useLiveQuery<Folder[]>(() => db.folders.toArray(), [dataVersion], []);
+  const playlists = useLiveQuery<Playlist[]>(() => db.playlists.toArray(), [dataVersion], []);
+  const playlistItems = useLiveQuery<PlaylistItem[]>(() => db.playlistItems.toArray(), [dataVersion], []);
   const ratings = useLiveQuery<Rating[]>(() => db.ratings.toArray(), [dataVersion], []);
   const tags = useLiveQuery<Keyword[]>(() => db.keywords.toArray(), [dataVersion], []);
   const songKeywords = useLiveQuery<SongKeyword[]>(() => db.songKeywords.toArray(), [dataVersion], []);
@@ -43,9 +58,19 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
     }
     return map;
   }, [songKeywords]);
+  const songIdsByPlaylistId = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const item of playlistItems) {
+      const set = map.get(item.playlistId) ?? new Set<string>();
+      set.add(item.songId);
+      map.set(item.playlistId, set);
+    }
+    return map;
+  }, [playlistItems]);
 
   const filteredSongs = useMemo(() => {
     const q = query.trim().toLowerCase();
+    const playlistSongIds = filters.playlistId ? songIdsByPlaylistId.get(filters.playlistId) : null;
 
     return songs.filter((song) => {
       if (q) {
@@ -54,11 +79,11 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
         if (!title.includes(q) && !artistName.includes(q)) return false;
       }
       if (filters.folderId && song.folderId !== filters.folderId) return false;
+      if (playlistSongIds && !playlistSongIds.has(song.id)) return false;
       if (filters.artistId && song.artistId !== filters.artistId) return false;
       if (filters.keyNote && song.keyNote !== filters.keyNote) return false;
       if (filters.status) {
-        const rating = ratingBySongId.get(song.id);
-        const status: SongStatus = rating?.status ?? 'new';
+        const status: RepertoireStatus = ratingBySongId.get(song.id)?.status ?? 'unexplored';
         if (status !== filters.status) return false;
       }
       if (filters.tagIds.length > 0) {
@@ -67,13 +92,36 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
       }
       return true;
     });
-  }, [songs, query, filters, artistById, ratingBySongId, tagIdsBySongId]);
+  }, [songs, query, filters, artistById, ratingBySongId, tagIdsBySongId, songIdsByPlaylistId]);
 
   const availableKeys = useMemo(() => {
     const keys = new Set<string>();
     for (const s of songs) if (s.keyNote) keys.add(s.keyNote);
     return [...keys].sort();
   }, [songs]);
+
+  const selectedSongs = useMemo(
+    () => filteredSongs.filter((s) => selectedIds.has(s.id)),
+    [filteredSongs, selectedIds]
+  );
+
+  function toggleSongSelected(songId: string): void {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(songId)) next.delete(songId);
+      else next.add(songId);
+      return next;
+    });
+  }
+
+  function selectAllShown(): void {
+    setSelectedIds(new Set(filteredSongs.map((s) => s.id)));
+  }
+
+  function exitSelectMode(): void {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
 
   if (songs.length === 0) {
     return (
@@ -86,24 +134,50 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
 
   return (
     <div>
-      <input
-        className="text-input"
-        placeholder="Search by title or artist…"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        style={{ marginBottom: 16, fontSize: 16 }}
-      />
+      <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+        <input
+          className="text-input"
+          placeholder="Search by title or artist…"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          style={{ flex: 1, fontSize: 16 }}
+        />
+        {selectMode ? (
+          <button className="button-secondary" onClick={exitSelectMode}>
+            Cancel
+          </button>
+        ) : (
+          <button className="button-secondary" onClick={() => setSelectMode(true)}>
+            Select
+          </button>
+        )}
+      </div>
 
       <FilterPanel
         artists={artists}
         folders={folders}
+        playlists={playlists}
         availableKeys={availableKeys}
         tags={tags}
         value={filters}
         onChange={setFilters}
       />
 
-      <BatchActionsBar songs={filteredSongs} />
+      {selectMode && (
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
+          <button className="button-secondary" onClick={selectAllShown}>
+            Select all shown ({filteredSongs.length})
+          </button>
+          {selectedIds.size > 0 && (
+            <button className="button-secondary" onClick={() => setSelectedIds(new Set())}>
+              Deselect all
+            </button>
+          )}
+          <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{selectedIds.size} selected</span>
+        </div>
+      )}
+
+      {selectMode && selectedSongs.length > 0 && <BatchActionsBar songs={selectedSongs} />}
 
       <div className="section-title" style={{ marginTop: 20 }}>
         {filteredSongs.length} of {songs.length} songs
@@ -117,7 +191,10 @@ export function LibraryView({ onOpenSong }: Props): JSX.Element {
             artist={song.artistId ? artistById.get(song.artistId) : undefined}
             folder={song.folderId ? folderById.get(song.folderId) : undefined}
             rating={ratingBySongId.get(song.id)}
+            selectMode={selectMode}
+            selected={selectedIds.has(song.id)}
             onOpen={() => onOpenSong(song.id)}
+            onToggleSelect={() => toggleSongSelected(song.id)}
           />
         ))}
       </div>

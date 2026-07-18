@@ -50,12 +50,33 @@ interface St4bFolder {
   name: string;
 }
 
+interface St4bPlaylist {
+  id: string;
+  name?: string;
+}
+
+// Field names guessed defensively (playlistID/songID matching the songID
+// convention St4bTrack already uses above) since this shape hasn't been
+// confirmed against a real .st4b export the way songs/tracks/folders have.
+// playlistsInserted/playlistItemsInserted in the import summary make it
+// obvious if this guess is wrong (they'd read 0 despite playlists existing
+// in the source).
+interface St4bPlaylistSong {
+  id?: string;
+  playlistID?: string;
+  playlistId?: string;
+  songID?: string;
+  songId?: string;
+  position?: number;
+  order?: number;
+}
+
 interface St4bBackup {
   songs?: St4bSong[];
   tracks?: St4bTrack[];
   folders?: St4bFolder[];
-  playlists?: unknown[];
-  playlistSongs?: unknown[];
+  playlists?: St4bPlaylist[];
+  playlistSongs?: St4bPlaylistSong[];
   keywords?: unknown[];
   songKeywords?: unknown[];
   regions?: unknown[];
@@ -71,6 +92,8 @@ export interface ImportSummary {
   foldersInserted: number;
   tracksInserted: number;
   tracksUpdated: number;
+  playlistsInserted: number;
+  playlistItemsInserted: number;
 }
 
 /**
@@ -118,13 +141,24 @@ export async function importSt4b(file: File): Promise<ImportSummary> {
     foldersInserted: 0,
     tracksInserted: 0,
     tracksUpdated: 0,
+    playlistsInserted: 0,
+    playlistItemsInserted: 0,
   };
 
   // The whole import runs as a single Dexie transaction: either everything
   // commits, or nothing does, so the database never ends up half-merged.
   await db.transaction(
     'rw',
-    [db.songs, db.artists, db.folders, db.tracks, db.externalIds, db.importLog],
+    [
+      db.songs,
+      db.artists,
+      db.folders,
+      db.tracks,
+      db.playlists,
+      db.playlistItems,
+      db.externalIds,
+      db.importLog,
+    ],
     async () => {
       // --- Folders ---
       for (const folder of backup.folders ?? []) {
@@ -220,6 +254,48 @@ export async function importSt4b(file: File): Promise<ImportSummary> {
           await db.tracks.update(internalId, trackRecord);
           counts.tracksUpdated += 1;
         }
+      }
+
+      // --- Playlists (Priority 5 — expose StageTraxx playlists for filtering) ---
+      for (const playlist of backup.playlists ?? []) {
+        const { internalId, isNew } = await resolveInternalId(
+          db,
+          'playlist',
+          SOURCE_SYSTEM,
+          playlist.id
+        );
+        const name = playlist.name?.trim() || 'Untitled playlist';
+        if (isNew) {
+          await db.playlists.add({ id: internalId, name });
+          counts.playlistsInserted += 1;
+        } else {
+          await db.playlists.update(internalId, { name });
+        }
+      }
+
+      // --- Playlist-song links (depend on playlists + songs already resolved above) ---
+      for (const link of backup.playlistSongs ?? []) {
+        const sourcePlaylistId = link.playlistID ?? link.playlistId;
+        const sourceSongId = link.songID ?? link.songId;
+        if (!sourcePlaylistId || !sourceSongId) continue;
+
+        const playlistInternalId = await findInternalId(db, 'playlist', SOURCE_SYSTEM, sourcePlaylistId);
+        const songInternalId = await findInternalId(db, 'song', SOURCE_SYSTEM, sourceSongId);
+        if (!playlistInternalId || !songInternalId) {
+          // References a playlist or song outside this import; skip rather
+          // than fail the whole import (same reasoning as tracks above).
+          continue;
+        }
+
+        const itemId = `${playlistInternalId}:${songInternalId}`;
+        const existing = await db.playlistItems.get(itemId);
+        await db.playlistItems.put({
+          id: itemId,
+          playlistId: playlistInternalId,
+          songId: songInternalId,
+          position: link.position ?? link.order ?? 0,
+        });
+        if (!existing) counts.playlistItemsInserted += 1;
       }
 
       const finishedAt = new Date().toISOString();

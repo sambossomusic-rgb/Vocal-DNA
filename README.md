@@ -124,31 +124,36 @@ just something on your local network serving static files.
 ## Using the app
 
 1. **Import** tab → choose your `.st4b` file. VocalDNA reads it once, copies
-   everything into its own local database, and never touches the original
-   file again.
+   everything into its own local database (including StageTraxx playlists),
+   and never touches the original file again.
 2. **Assess** tab (the default screen) → the fast path through a whole
    library. One question per song — 🎤 Regular / 🎵 Occasional / 📚 Learning /
-   🚫 Never — one tap, auto-advance to the next song. Regular/Occasional
-   songs get one extra quick screen (Demand, Reliability, Transpose, Notes),
-   prefilled from what you've already rated so agreeing is a single tap. A
-   progress header tracks imported/assessed/remaining and prediction
-   confidence as you go.
+   🌱 Unexplored — one tap, auto-advance to the next song. Regular/Occasional
+   songs get one extra quick screen (Demand, Reliability, Transpose, Notes,
+   all large 1-tap buttons), prefilled from what you've already rated so
+   agreeing is a single tap. A progress header tracks imported/assessed/
+   remaining and prediction confidence as you go.
 3. **Library** tab → browse every imported song, search instantly by title
-   or artist, and filter by folder, artist, key, rating status, or tags.
-   The batch actions bar can mark, transpose, or note every song currently
-   shown (by folder/artist/tag/search) in one action.
+   or artist, and filter by folder, playlist, artist, key, status, or tags
+   (all combinable). Tap **Select** to multi-select songs — tap individual
+   cards, or filter to a folder/playlist and "Select all shown", then
+   deselect any you don't want — and batch-apply a status, Demand,
+   Reliability, Transpose, tags, or clear ratings entirely across the whole
+   selection at once.
 4. Tap any song card to open its **detail page**: key, BPM, duration, track
-   list, lyrics/chart, your own tags, and the detailed rating form.
-5. The detailed rating form still rates a song on **Difficulty, Confidence,
-   Enjoyment, Fatigue**, sets a **Transpose** amount, a **Status**, and
-   free-text **Notes** — useful for a deeper pass beyond the fast Assess flow.
+   list, your own tags, and the detailed rating form. (Lyrics live in
+   StageTraxx, not here.)
+5. The detailed rating form rates a song on **Demand, Reliability,
+   Enjoyment, Fatigue** (1-10, one-tap buttons), a **Status**, a
+   **Transpose** amount, and free-text **Notes** — useful for a deeper pass
+   beyond the fast Assess flow.
 6. **Statistics** tab → repertoire-wide numbers: song/artist/folder counts,
-   average BPM, key distribution, rating coverage, average ratings, rating
-   status breakdown, top artists.
+   average BPM, key distribution, rating coverage, average Demand/
+   Reliability/Enjoyment/Fatigue, status breakdown, top artists.
 7. **Voice Profile** tab → a profile built entirely from your own ratings:
-   strongest keys (by confidence), most challenging keys (by difficulty),
-   transpose patterns, a "repertoire map" (strongest / comfort zone /
-   growing / needs work), and a recent fatigue trend.
+   strongest and weakest keys (by reliability), transpose patterns, a
+   "repertoire map" (strongest / comfort zone / growing / needs work), and a
+   recent fatigue trend.
 
 Re-importing the same (or an updated) `.st4b` file later will **update**
 existing songs rather than duplicate them — VocalDNA tracks each song's

@@ -123,25 +123,6 @@ export function SongDetailView({ songId, onBack }: Props): JSX.Element {
           </div>
         </>
       )}
-
-      {song.lyrics && (
-        <>
-          <div className="section-title">Lyrics / Chart</div>
-          <div className="card">
-            <pre
-              style={{
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                lineHeight: 1.6,
-                margin: 0,
-              }}
-            >
-              {song.lyrics}
-            </pre>
-          </div>
-        </>
-      )}
     </div>
   );
 }

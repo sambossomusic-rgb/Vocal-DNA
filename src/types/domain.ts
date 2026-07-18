@@ -51,51 +51,53 @@ export interface Track {
   muted: boolean;
 }
 
-export type SongStatus = 'new' | 'learning' | 'ready' | 'performance-ready' | 'retired';
-
-export const SONG_STATUSES: SongStatus[] = [
-  'new',
-  'learning',
-  'ready',
-  'performance-ready',
-  'retired',
-];
-
 /**
- * Version 2's Quick Assessment answer: how often the performer currently
- * plays this song. Distinct from `SongStatus` above (a workflow stage set
- * via the detailed rating form) — this is the fast, one-tap signal used to
- * drive the assessment queue, adaptive defaults, and predictions.
+ * A song's place in the working repertoire. Replaces Version 1/2's separate
+ * `SongStatus` (workflow stage) and `PerformanceFrequency` (Quick Assessment
+ * answer) — those were two status concepts that never merged, which is why
+ * Version 2's statistics looked wrong. There is now exactly one status per
+ * song. "Unexplored" is the default for a song with no rating at all — it
+ * means "not yet in rotation", not "bad".
  */
-export type PerformanceFrequency = 'regular' | 'occasional' | 'learning' | 'never';
+export type RepertoireStatus = 'regular' | 'occasional' | 'learning' | 'unexplored';
 
-export const PERFORMANCE_FREQUENCIES: PerformanceFrequency[] = [
+export const REPERTOIRE_STATUSES: RepertoireStatus[] = [
   'regular',
   'occasional',
   'learning',
-  'never',
+  'unexplored',
 ];
+
+export const REPERTOIRE_STATUS_LABELS: Record<RepertoireStatus, string> = {
+  regular: '🎤 Regular',
+  occasional: '🎵 Occasional',
+  learning: '📚 Learning',
+  unexplored: '🌱 Unexplored',
+};
+
+/** Regular is the highest priority, Unexplored the lowest — used to order status breakdowns. */
+export const REPERTOIRE_STATUS_PRIORITY: Record<RepertoireStatus, number> = {
+  regular: 4,
+  occasional: 3,
+  learning: 2,
+  unexplored: 1,
+};
 
 /**
  * A rating is one row per song, holding the musician's own self-assessment.
- * All numeric scales are 1-5. Transpose is in semitones and may be negative.
+ * Demand/Reliability/Enjoyment/Fatigue are all 1-10. Transpose is in
+ * semitones and may be negative.
  */
 export interface Rating {
   songId: string; // primary key, references songs.id
-  difficulty: number; // 1-5, how hard the song is to perform
-  confidence: number; // 1-5, how confident the singer feels
-  enjoyment: number; // 1-5, how much they enjoy performing it
-  fatigue: number; // 1-5, how vocally tiring it is
+  demand: number; // 1-10, overall audience/setlist demand
+  reliability: number; // 1-10, how reliably the performer nails it
+  enjoyment: number; // 1-10, how much they enjoy performing it
+  fatigue: number; // 1-10, how vocally tiring it is
   transpose: number; // semitones, e.g. -12..+12
-  status: SongStatus;
+  status: RepertoireStatus;
   notes: string;
   ratedAt: string; // ISO timestamp of the most recent save
-
-  // --- Version 2: Quick Assessment fields. Optional so every Version 1 row
-  // (which never set these) keeps loading and saving without a migration. ---
-  performanceFrequency?: PerformanceFrequency | null;
-  demand?: number | null; // 1-10, overall audience/setlist demand
-  reliability?: number | null; // 1-10, how reliably the performer nails it
 
   // --- Reserved for future features (see Constitution Feature 9). Not
   // populated or editable by any screen yet. ---
@@ -116,7 +118,7 @@ export interface VoiceProfileEntry {
   createdAt: string;
 }
 
-export type EntityType = 'song' | 'artist' | 'folder' | 'track';
+export type EntityType = 'song' | 'artist' | 'folder' | 'track' | 'playlist';
 
 /** Maps an external record (e.g. a StageTraxx song id) to VocalDNA's internal UUID. */
 export interface ExternalIdMapping {
@@ -138,6 +140,8 @@ export interface ImportLogEntry {
   foldersInserted: number;
   tracksInserted: number;
   tracksUpdated: number;
+  playlistsInserted: number;
+  playlistItemsInserted: number;
 }
 
 export interface Setting {
@@ -145,19 +149,18 @@ export interface Setting {
   value: string;
 }
 
-// --- Reserved schema, not used in Version 1. `Keyword`/`SongKeyword` are
-// now used starting in Version 2 as VocalDNA's free-form Tag system (see
-// Constitution Feature 7) — table names are unchanged to avoid an
-// unnecessary database rename, but every Version 2+ screen presents them
-// to the performer as "Tags". `Playlist`/`PlaylistItem` remain reserved. ---
+// --- `keywords`/`songKeywords` (Tags) and `playlists`/`playlistItems` were
+// reserved in Version 1, table names unchanged since. Tags became active in
+// Version 2; Playlists become active in Version 2.1, imported directly from
+// StageTraxx (see import/st4bImporter.ts) rather than user-created. ---
 
 export interface Playlist {
-  id: string;
+  id: string; // VocalDNA-owned UUID
   name: string;
 }
 
 export interface PlaylistItem {
-  id: string;
+  id: string; // VocalDNA-owned UUID
   playlistId: string;
   songId: string;
   position: number;
@@ -185,20 +188,19 @@ export interface PerformanceHistoryEntry {
 }
 
 /**
- * The Version 1 rating defaults, factored out so every Version 2 write path
- * that can create a brand-new rating row (Quick Assessment, Batch Actions)
- * fills the untouched Version 1 fields the same way the detailed Rating
- * Form always has, instead of leaving them undefined.
+ * Fallback values for any write path that can create a brand-new rating row
+ * (Quick Assessment, Batch Actions) before every field has been explicitly
+ * set by the performer.
  */
 export function createDefaultRating(songId: string): Rating {
   return {
     songId,
-    difficulty: 3,
-    confidence: 3,
-    enjoyment: 3,
-    fatigue: 3,
+    demand: 5,
+    reliability: 5,
+    enjoyment: 5,
+    fatigue: 5,
     transpose: 0,
-    status: 'new',
+    status: 'unexplored',
     notes: '',
     ratedAt: new Date().toISOString(),
   };
