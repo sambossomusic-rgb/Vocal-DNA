@@ -1,108 +1,38 @@
-import { useEffect, useMemo, useState } from 'react';
-import { db } from '../../db/db';
-import { useLiveQuery } from '../../db/useLiveQuery';
-import { useDataVersion } from '../../db/dataVersion';
-import type {
-  Song,
-  Artist,
-  Folder,
-  Playlist,
-  PlaylistItem,
-  Rating,
-  RepertoireStatus,
-  Keyword,
-  SongKeyword,
-} from '../../types/domain';
+import { useMemo, useState } from 'react';
 import { SongCard } from './SongCard';
-import { FilterPanel, type FilterState, EMPTY_FILTERS } from './FilterPanel';
+import { FilterPanel, type FilterState } from './FilterPanel';
 import { BatchActionsBar } from './BatchActionsBar';
+import { useLibraryData } from './useLibraryData';
 
 interface Props {
-  onOpenSong: (songId: string) => void;
-  // Set by App.tsx when navigating in from a Statistics/Voice Profile
-  // report (Priority 4: "every analysis should become navigation").
-  pendingFilter?: FilterState | null;
-  onConsumePendingFilter?: () => void;
+  // Opens a song, handing up the ordered list it was opened from so Song
+  // Detail's Previous/Next and "back to this filtered view" work (Version 3).
+  onOpenSong: (songId: string, contextIds: string[]) => void;
+  filters: FilterState;
+  onFiltersChange: (filters: FilterState) => void;
+  search: string;
+  onSearchChange: (search: string) => void;
 }
 
-export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter }: Props): JSX.Element {
-  const dataVersion = useDataVersion();
-  const [query, setQuery] = useState('');
-  const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
+export function LibraryView({ onOpenSong, filters, onFiltersChange, search, onSearchChange }: Props): JSX.Element {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  useEffect(() => {
-    if (pendingFilter) {
-      setFilters(pendingFilter);
-      onConsumePendingFilter?.();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingFilter]);
+  const {
+    songs,
+    artists,
+    folders,
+    playlists,
+    tags,
+    artistById,
+    folderById,
+    ratingBySongId,
+    availableKeys,
+    applyFilters,
+  } = useLibraryData();
 
-  const songs = useLiveQuery<Song[]>(() => db.songs.toArray(), [dataVersion], []);
-  const artists = useLiveQuery<Artist[]>(() => db.artists.toArray(), [dataVersion], []);
-  const folders = useLiveQuery<Folder[]>(() => db.folders.toArray(), [dataVersion], []);
-  const playlists = useLiveQuery<Playlist[]>(() => db.playlists.toArray(), [dataVersion], []);
-  const playlistItems = useLiveQuery<PlaylistItem[]>(() => db.playlistItems.toArray(), [dataVersion], []);
-  const ratings = useLiveQuery<Rating[]>(() => db.ratings.toArray(), [dataVersion], []);
-  const tags = useLiveQuery<Keyword[]>(() => db.keywords.toArray(), [dataVersion], []);
-  const songKeywords = useLiveQuery<SongKeyword[]>(() => db.songKeywords.toArray(), [dataVersion], []);
-
-  const artistById = useMemo(() => new Map(artists.map((a) => [a.id, a])), [artists]);
-  const folderById = useMemo(() => new Map(folders.map((f) => [f.id, f])), [folders]);
-  const ratingBySongId = useMemo(() => new Map(ratings.map((r) => [r.songId, r])), [ratings]);
-  const tagIdsBySongId = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const link of songKeywords) {
-      const list = map.get(link.songId) ?? [];
-      list.push(link.keywordId);
-      map.set(link.songId, list);
-    }
-    return map;
-  }, [songKeywords]);
-  const songIdsByPlaylistId = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const item of playlistItems) {
-      const set = map.get(item.playlistId) ?? new Set<string>();
-      set.add(item.songId);
-      map.set(item.playlistId, set);
-    }
-    return map;
-  }, [playlistItems]);
-
-  const filteredSongs = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const playlistSongIds = filters.playlistId ? songIdsByPlaylistId.get(filters.playlistId) : null;
-
-    return songs.filter((song) => {
-      if (q) {
-        const title = song.title.toLowerCase();
-        const artistName = song.artistId ? artistById.get(song.artistId)?.name.toLowerCase() ?? '' : '';
-        if (!title.includes(q) && !artistName.includes(q)) return false;
-      }
-      if (filters.folderId && song.folderId !== filters.folderId) return false;
-      if (playlistSongIds && !playlistSongIds.has(song.id)) return false;
-      if (filters.artistId && song.artistId !== filters.artistId) return false;
-      if (filters.keyNote && song.keyNote !== filters.keyNote) return false;
-      if (filters.status) {
-        const status: RepertoireStatus = ratingBySongId.get(song.id)?.status ?? 'unexplored';
-        if (status !== filters.status) return false;
-      }
-      if (filters.tagIds.length > 0) {
-        const songTagIds = tagIdsBySongId.get(song.id) ?? [];
-        if (!filters.tagIds.every((tagId) => songTagIds.includes(tagId))) return false;
-      }
-      if (filters.songIds && !filters.songIds.includes(song.id)) return false;
-      return true;
-    });
-  }, [songs, query, filters, artistById, ratingBySongId, tagIdsBySongId, songIdsByPlaylistId]);
-
-  const availableKeys = useMemo(() => {
-    const keys = new Set<string>();
-    for (const s of songs) if (s.keyNote) keys.add(s.keyNote);
-    return [...keys].sort();
-  }, [songs]);
+  const filteredSongs = useMemo(() => applyFilters(search, filters), [applyFilters, search, filters]);
+  const filteredIds = useMemo(() => filteredSongs.map((s) => s.id), [filteredSongs]);
 
   const selectedSongs = useMemo(
     () => filteredSongs.filter((s) => selectedIds.has(s.id)),
@@ -118,10 +48,6 @@ export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter 
     });
   }
 
-  function selectAllShown(): void {
-    setSelectedIds(new Set(filteredSongs.map((s) => s.id)));
-  }
-
   function exitSelectMode(): void {
     setSelectMode(false);
     setSelectedIds(new Set());
@@ -131,7 +57,7 @@ export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter 
     return (
       <div className="empty-state">
         <h2 style={{ fontSize: 18, marginBottom: 8 }}>No songs yet</h2>
-        <p>Go to the Import tab and choose a StageTraxx4 (.st4b) file to get started.</p>
+        <p>Open the Assess tab and use Import to load a StageTraxx4 (.st4b) file.</p>
       </div>
     );
   }
@@ -142,8 +68,8 @@ export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter 
         <input
           className="text-input"
           placeholder="Search by title or artist…"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
           style={{ flex: 1, fontSize: 16 }}
         />
         {selectMode ? (
@@ -164,12 +90,12 @@ export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter 
         availableKeys={availableKeys}
         tags={tags}
         value={filters}
-        onChange={setFilters}
+        onChange={onFiltersChange}
       />
 
       {selectMode && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 12 }}>
-          <button className="button-secondary" onClick={selectAllShown}>
+          <button className="button-secondary" onClick={() => setSelectedIds(new Set(filteredIds))}>
             Select all shown ({filteredSongs.length})
           </button>
           {selectedIds.size > 0 && (
@@ -197,7 +123,7 @@ export function LibraryView({ onOpenSong, pendingFilter, onConsumePendingFilter 
             rating={ratingBySongId.get(song.id)}
             selectMode={selectMode}
             selected={selectedIds.has(song.id)}
-            onOpen={() => onOpenSong(song.id)}
+            onOpen={() => onOpenSong(song.id, filteredIds)}
             onToggleSelect={() => toggleSongSelected(song.id)}
           />
         ))}

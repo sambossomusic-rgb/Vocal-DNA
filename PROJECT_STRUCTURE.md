@@ -19,8 +19,12 @@ vocaldna/
 └── src/
     ├── main.tsx                   React root, mounts <App /> and imports global.css
     ├── vite-env.d.ts              Vite client type reference
-    ├── App.tsx                    Tab navigation shell (Library / Statistics /
-    │                              Voice Profile / Import) + song detail routing
+    ├── App.tsx                    Tab shell (Assess / Library / Statistics /
+    │                              Voice Profile — Import lives under Assess) +
+    │                              song-detail routing. Holds the Library filter/
+    │                              search state and the song "context list" so a
+    │                              song's Previous/Next and "back to this view"
+    │                              survive opening it (v3.1).
     │
     ├── styles/
     │   └── global.css             Dark, touch-friendly design system (iPad-tuned:
@@ -34,16 +38,15 @@ vocaldna/
     │                              as Quick Assessment's first screen)
     │
     ├── types/
-    │   └── domain.ts              VocalDNA's own domain types: Song (+ CHROMATIC_NOTES
-    │                              for the Version 3 key editor), Artist, Folder,
-    │                              Track (reserved, unused since Version 3), Rating
-    │                              (Demand/Reliability/Enjoyment/Fatigue nullable
-    │                              RatingValue, 1-5), RepertoireStatus,
-    │                              ExternalIdMapping, ImportLogEntry, Setting,
-    │                              createDefaultRating(), and reserved types for
-    │                              future features (Keyword/Tag, VoiceProfileEntry,
-    │                              PerformanceHistoryEntry). Playlist/PlaylistItem
-    │                              are active as of Version 2.1.
+    │   └── domain.ts              VocalDNA's own domain types + label helpers:
+    │                              Song (+ CHROMATIC_NOTES for the key editor,
+    │                              isInstrumental flag), Rating (nullable 1-5
+    │                              metrics), RepertoireStatus, AssessMetric +
+    │                              metricLabel()/assessMetricLabel() (vocal vs.
+    │                              instrumental wording), SUGGESTED_TAGS, plus
+    │                              ExternalIdMapping, ImportLogEntry, and reserved
+    │                              types (Keyword/Tag, VoiceProfileEntry,
+    │                              PerformanceHistoryEntry).
     │
     ├── db/
     │   ├── db.ts                  Dexie database class — the actual IndexedDB schema.
@@ -79,71 +82,64 @@ vocaldna/
     │   │                          data. Zero React/UI imports — takes plain arrays,
     │   │                          returns a plain object.
     │   ├── voiceProfileEngine.ts  Pure functions computing the Voice Profile
-    │   │                          dashboard's data (key reliability, transpose
-    │   │                          patterns, repertoire quadrants, fatigue trend).
-    │   │                          Also zero UI imports.
-    │   ├── predictionEngine.ts    Pure statistical learning (no AI): per-tag
-    │   │                          demand/reliability/status averages and per-key
-    │   │                          transpose averages, blended into a single
-    │   │                          per-song prediction.
-    │   └── progressEngine.ts      Pure function computing the Assess tab's
-    │                              progress dashboard numbers.
+    │   │                          dashboard's data (key reliability, repertoire
+    │   │                          quadrants, fatigue trend, and v3.1's
+    │   │                          recommended key changes). Zero UI imports.
+    │   └── predictionEngine.ts    Pure statistical learning (no AI): per-tag
+    │                              demand/reliability/status averages blended into
+    │                              a single per-song prediction (prefills Assess).
     │
     └── features/
         ├── import/
-        │   └── ImportView.tsx           File picker + import trigger + result summary
+        │   └── ImportView.tsx           File picker + import trigger + result
+        │                                 summary. Rendered inside the Assess tab
+        │                                 (v3.1), not a top-level tab.
         │
-        ├── assess/                      Quick Assessment mode
-        │   ├── AssessView.tsx           Owns the three-phase queue (Status → Pass
-        │   │                            One → Pass Two, Version 3) and progress
-        │   │                            header, routing between the cards below
-        │   ├── QuickAssessCard.tsx       The one-question, one-tap status screen
-        │   ├── PassOneCard.tsx          Demand & Reliability only, prefilled from
-        │   │                            predictionEngine, one-tap "Save & Next"
-        │   └── PassTwoCard.tsx          Enjoyment & Fatigue only, run after every
-        │                                 in-rotation song has completed Pass One
+        ├── assess/                      Assess workflow (v3.1)
+        │   ├── AssessView.tsx           Assess/Import switch; owns the filter panel,
+        │   │                            metric checkboxes, and the walk through the
+        │   │                            filtered collection (reuses useLibraryData)
+        │   ├── AssessCard.tsx           One song's card — shows only the chosen
+        │   │                            metrics (vocal/instrumental-aware labels),
+        │   │                            prefilled from prediction, Prev / Save&Next
+        │   └── MetricToggles.tsx        Checkbox chips choosing which metrics to assess
         │
         ├── tags/                        Free-form tag system
-        │   └── TagEditor.tsx            Per-song tag chip picker/creator, used from
-        │                                 Song Detail
+        │   └── TagEditor.tsx            Per-song tag chip picker/creator with
+        │                                 one-tap suggested tags (v3.1)
         │
         ├── library/
-        │   ├── LibraryView.tsx          Loads songs/artists/folders/playlists/
-        │   │                            ratings/tags, wires search + filters +
-        │   │                            multi-select together, renders the grid.
-        │   │                            Accepts a pendingFilter from App.tsx for
-        │   │                            Statistics/Voice Profile navigation (v3).
+        │   ├── useLibraryData.ts        Shared hook: loads every table, builds the
+        │   │                            lookup maps, and exposes one applyFilters so
+        │   │                            Library and Assess filter identically (v3.1)
+        │   ├── LibraryView.tsx          Controlled by App (filter/search props);
+        │   │                            renders the grid + multi-select; hands the
+        │   │                            ordered filtered list up when opening a song
         │   ├── SongCard.tsx             One song's card in the grid; supports
         │   │                            select-mode tap-to-toggle
         │   ├── FilterPanel.tsx          Folder / playlist / artist / key / status /
-        │   │                            tag (multi) / songIds (v3, set by report
-        │   │                            navigation) filter controls
+        │   │                            tag / songIds filter controls (shared by
+        │   │                            Library and Assess)
         │   └── BatchActionsBar.tsx      Explicit multi-select batch actions: change
-        │                                 status, set demand/reliability/transpose,
-        │                                 add tags (additive only), clear ratings
+        │                                 status, set Vocal Demand / Performance
+        │                                 Reliability, add tags (additive), clear ratings
         │
         ├── song-detail/
-        │   └── SongDetailView.tsx       Full song detail: metadata (Key is
-        │                                 up/down-editable, Version 3 — writes only
-        │                                 to VocalDNA, never StageTraxx), tags,
-        │                                 rating form. No lyrics, no tracks.
-        │
-        ├── rating/
-        │   └── RatingForm.tsx           Status picker, Demand/Reliability/Enjoyment/
-        │                                 Fatigue five-point button grids, Transpose
-        │                                 stepper, Notes textarea, Save button.
+        │   ├── SongDetailView.tsx       Loads the song (one combined query) and lays
+        │   │                            out metadata, the editable Key stepper, tags,
+        │   │                            and Previous/Next through the context list.
+        │   │                            No lyrics, no tracks, no transpose.
+        │   └── SongEditor.tsx           Owns the rating state so Save & Previous &
+        │                                 Next all persist the same edits (v3.1)
         │
         ├── stats/
-        │   └── StatsView.tsx            Statistics dashboard UI (renders statsEngine
-        │                                 output only — no calculation logic here).
-        │                                 Every bar/row is clickable (Version 3),
-        │                                 navigating to a filtered Library.
+        │   └── StatsView.tsx            Statistics dashboard UI. Every bar/row is
+        │                                 clickable, navigating to a filtered Library.
         │
         └── voice-profile/
-            └── VoiceProfileView.tsx      Voice Profile dashboard UI (renders
-                                           voiceProfileEngine output only). Quadrants,
-                                           key rows, and the fatigue trend are
-                                           clickable (Version 3).
+            └── VoiceProfileView.tsx      Voice Profile dashboard UI. Recommended key
+                                           changes, quadrants, key rows, and the
+                                           fatigue trend are all clickable.
 ```
 
 ## Architectural rules this structure enforces

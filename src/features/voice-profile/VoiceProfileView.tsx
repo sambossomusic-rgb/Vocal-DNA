@@ -7,7 +7,7 @@ import { computeVoiceProfile } from '../../analytics/voiceProfileEngine';
 import type { FilterState } from '../library/FilterPanel';
 
 interface Props {
-  onOpenSong: (songId: string) => void;
+  onOpenSong: (songId: string, contextIds: string[]) => void;
   onNavigateToLibrary: (filterPatch: Partial<FilterState>, label?: string) => void;
 }
 
@@ -23,14 +23,14 @@ export function VoiceProfileView({ onOpenSong, onNavigateToLibrary }: Props): JS
     return (
       <div className="empty-state">
         Rate some songs first — your Voice Profile is built entirely from your own
-        demand/reliability/enjoyment/fatigue/transpose ratings, so it has nothing to show yet.
+        demand/reliability/enjoyment/fatigue ratings, so it has nothing to show yet.
       </div>
     );
   }
 
   const maxKeyReliability = Math.max(1, ...profile.strongestKeys.map((k) => k.averageReliability));
-  const maxTransposeCount = Math.max(1, ...profile.transposePatterns.map((t) => t.songCount));
   const fatigueTrendSongIds = [...new Set(profile.fatigueTrend.map((p) => p.songId))];
+  const recommendationSongIds = profile.keyChangeRecommendations.map((r) => r.songId);
 
   return (
     <div>
@@ -39,9 +39,38 @@ export function VoiceProfileView({ onOpenSong, onNavigateToLibrary }: Props): JS
         Built from {profile.ratedSongCount} rated song{profile.ratedSongCount === 1 ? '' : 's'}.
       </p>
 
-      <div className="section-title" style={{ marginTop: 0 }}>
-        Strongest keys (by reliability)
-      </div>
+      {profile.keyChangeRecommendations.length > 0 && (
+        <>
+          <div className="section-title" style={{ marginTop: 0 }}>
+            Recommended key changes ({profile.keyChangeRecommendations.length})
+          </div>
+          <div className="card">
+            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 0 }}>
+              Songs you rate lower on Performance Reliability that sit outside your most reliable key.
+              A suggestion from your own ratings — your range and taste decide.
+            </p>
+            {profile.keyChangeRecommendations.slice(0, 20).map((rec) => (
+              <button
+                key={rec.songId}
+                className="clickable-row"
+                style={{ flexDirection: 'column', alignItems: 'flex-start', gap: 2, padding: '10px 0', borderBottom: '1px solid var(--border)' }}
+                onClick={() => onOpenSong(rec.songId, recommendationSongIds)}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', fontSize: 14 }}>
+                  <span style={{ fontWeight: 600 }}>{rec.title.trim() || 'Untitled'}</span>
+                  <span>
+                    {rec.currentKey} → <strong style={{ color: 'var(--success)' }}>{rec.suggestedKey}</strong>{' '}
+                    (+{rec.confidenceGain})
+                  </span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>{rec.reason}</div>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      <div className="section-title">Strongest keys (by reliability)</div>
       <div className="card">
         {profile.strongestKeys.slice(0, 8).map((k) => (
           <button
@@ -81,28 +110,6 @@ export function VoiceProfileView({ onOpenSong, onNavigateToLibrary }: Props): JS
         ))}
       </div>
 
-      <div className="section-title">Transpose patterns</div>
-      <div className="card">
-        <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 10 }}>
-          Average transpose: {profile.averageTranspose !== null ? profile.averageTranspose.toFixed(1) : '—'}{' '}
-          semitones
-        </div>
-        {profile.transposePatterns.slice(0, 8).map((t) => (
-          <div className="bar-row" key={t.transpose}>
-            <div style={{ width: 48, fontSize: 13, color: 'var(--text-dim)' }}>
-              {t.transpose > 0 ? `+${t.transpose}` : t.transpose}
-            </div>
-            <div className="bar-track">
-              <div
-                className="bar-fill"
-                style={{ width: `${(t.songCount / maxTransposeCount) * 100}%` }}
-              />
-            </div>
-            <div style={{ width: 60, textAlign: 'right', fontSize: 12 }}>{t.songCount}</div>
-          </div>
-        ))}
-      </div>
-
       <div className="section-title">Repertoire map</div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
         {profile.quadrants.map((q) => (
@@ -132,7 +139,7 @@ export function VoiceProfileView({ onOpenSong, onNavigateToLibrary }: Props): JS
                   return (
                     <button
                       key={id}
-                      onClick={() => onOpenSong(id)}
+                      onClick={() => onOpenSong(id, q.songIds)}
                       style={{
                         background: 'transparent',
                         border: 'none',
@@ -179,7 +186,7 @@ export function VoiceProfileView({ onOpenSong, onNavigateToLibrary }: Props): JS
             key={`${point.ratedAt}-${i}`}
             className="clickable-row"
             style={{ justifyContent: 'space-between', padding: '5px 0', fontSize: 13 }}
-            onClick={() => onOpenSong(point.songId)}
+            onClick={() => onOpenSong(point.songId, fatigueTrendSongIds)}
           >
             <span style={{ color: 'var(--text-dim)' }}>{point.songTitle}</span>
             <span>{'●'.repeat(point.fatigue)}</span>

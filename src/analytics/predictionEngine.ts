@@ -15,7 +15,6 @@ export interface GlobalLearning {
   sampleSize: number;
   averageDemand: number | null;
   averageReliability: number | null;
-  averageTranspose: number | null;
   statusCounts: Record<RepertoireStatus, number>;
 }
 
@@ -24,7 +23,6 @@ export interface SongPrediction {
   predictedStatus: RepertoireStatus | null;
   predictedDemand: RatingValue | null;
   predictedReliability: RatingValue | null;
-  predictedTranspose: number | null;
   sampleSize: number; // how many prior ratings this prediction draws on
 }
 
@@ -120,7 +118,6 @@ export function computeGlobalLearning(ratings: Rating[]): GlobalLearning {
   let demandCount = 0;
   let reliabilitySum = 0;
   let reliabilityCount = 0;
-  let transposeSum = 0;
 
   for (const rating of ratings) {
     statusCounts[rating.status] += 1;
@@ -132,49 +129,27 @@ export function computeGlobalLearning(ratings: Rating[]): GlobalLearning {
       reliabilitySum += rating.reliability;
       reliabilityCount += 1;
     }
-    transposeSum += rating.transpose;
   }
 
   return {
     sampleSize: ratings.length,
     averageDemand: demandCount > 0 ? demandSum / demandCount : null,
     averageReliability: reliabilityCount > 0 ? reliabilitySum / reliabilityCount : null,
-    averageTranspose: ratings.length > 0 ? transposeSum / ratings.length : null,
     statusCounts,
   };
 }
 
-/** Average transpose already recorded for each key, used to predict a new song's transpose from its own key. */
-export function computeKeyTransposeAverages(songs: Song[], ratings: Rating[]): Map<string, number> {
-  const songById = new Map(songs.map((s) => [s.id, s]));
-  const sums = new Map<string, { sum: number; count: number }>();
-
-  for (const rating of ratings) {
-    const song = songById.get(rating.songId);
-    if (!song?.keyNote) continue;
-    const entry = sums.get(song.keyNote) ?? { sum: 0, count: 0 };
-    entry.sum += rating.transpose;
-    entry.count += 1;
-    sums.set(song.keyNote, entry);
-  }
-
-  const averages = new Map<string, number>();
-  for (const [key, { sum, count }] of sums) averages.set(key, sum / count);
-  return averages;
-}
-
 /**
- * Predicts likely status/demand/reliability/transpose for one song from the
- * performer's own prior ratings — a weighted blend of every tag the song
- * carries, falling back to the global average when there's no tag data yet.
- * Purely statistical, no machine learning model involved.
+ * Predicts likely status/demand/reliability for one song from the performer's
+ * own prior ratings — a weighted blend of every tag the song carries, falling
+ * back to the global average when there's no tag data yet. Purely statistical,
+ * no machine learning model involved.
  */
 export function predictForSong(
   song: Song,
   tagIds: string[],
   tagLearning: Map<string, TagLearning>,
-  globalLearning: GlobalLearning,
-  keyTransposeAverages: Map<string, number>
+  globalLearning: GlobalLearning
 ): SongPrediction {
   const relevantTags = tagIds.map((id) => tagLearning.get(id)).filter((t): t is TagLearning => Boolean(t));
 
@@ -205,10 +180,6 @@ export function predictForSong(
     demandWeight > 0 ? demandWeightedSum / demandWeight : globalLearning.averageDemand;
   const predictedReliabilityAverage =
     reliabilityWeight > 0 ? reliabilityWeightedSum / reliabilityWeight : globalLearning.averageReliability;
-  const predictedTranspose =
-    (song.keyNote ? keyTransposeAverages.get(song.keyNote) : undefined) ??
-    globalLearning.averageTranspose ??
-    null;
 
   return {
     songId: song.id,
@@ -216,7 +187,6 @@ export function predictForSong(
     predictedDemand: predictedDemandAverage !== null ? toRatingValue(predictedDemandAverage) : null,
     predictedReliability:
       predictedReliabilityAverage !== null ? toRatingValue(predictedReliabilityAverage) : null,
-    predictedTranspose: predictedTranspose !== null ? Math.round(predictedTranspose) : null,
     sampleSize: totalSampleSize > 0 ? totalSampleSize : globalLearning.sampleSize,
   };
 }

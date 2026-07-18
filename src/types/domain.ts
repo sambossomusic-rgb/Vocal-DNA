@@ -37,6 +37,11 @@ export interface Song {
   addedAt: string | null; // ISO timestamp
   updatedAt: string; // ISO timestamp, set by VocalDNA on every write
 
+  // Version 3 workflow update — an instrumental number. When true, the vocal
+  // metric labels re-read as playing/physical (see metricLabel). Optional and
+  // non-indexed, so it needs no schema migration; absent means "vocal".
+  isInstrumental?: boolean;
+
   // --- Reserved for future features (see Constitution Feature 9). Not
   // populated or editable by any screen yet. ---
   capo?: number | null;
@@ -71,6 +76,57 @@ export const RATING_SCALE_LABELS: Record<RatingValue, string> = {
   4: 'Good',
   5: 'Excellent',
 };
+
+/**
+ * The four numeric rating dimensions, plus the special `status` axis. The
+ * Version 3 workflow update lets the performer choose which of these to
+ * assess (Assess tab) rather than forcing a fixed order.
+ */
+export type NumericMetric = 'demand' | 'reliability' | 'enjoyment' | 'fatigue';
+export type AssessMetric = 'status' | NumericMetric;
+
+export const NUMERIC_METRICS: NumericMetric[] = ['demand', 'reliability', 'enjoyment', 'fatigue'];
+export const ASSESS_METRICS: AssessMetric[] = ['status', ...NUMERIC_METRICS];
+
+/**
+ * User-facing label for a numeric metric. Demand and Fatigue re-read for an
+ * instrumental number (Playing Demand / Physical Fatigue); Reliability and
+ * Enjoyment are the same either way.
+ */
+export function metricLabel(metric: NumericMetric, isInstrumental = false): string {
+  switch (metric) {
+    case 'demand':
+      return isInstrumental ? 'Playing Demand' : 'Vocal Demand';
+    case 'reliability':
+      return 'Performance Reliability';
+    case 'enjoyment':
+      return 'Enjoyment';
+    case 'fatigue':
+      return isInstrumental ? 'Physical Fatigue' : 'Vocal Fatigue';
+  }
+}
+
+export function assessMetricLabel(metric: AssessMetric, isInstrumental = false): string {
+  return metric === 'status' ? 'Status' : metricLabel(metric, isInstrumental);
+}
+
+/**
+ * A small starter palette of common performance tags, offered as one-tap
+ * add chips in the tag editor (Version 3). Never hardcoded as the only
+ * options — the performer can still create any tag they like.
+ */
+export const SUGGESTED_TAGS = [
+  'Guitar Solo',
+  'Duet',
+  'Instrumental',
+  'Dance',
+  'Audience Favourite',
+  'Singalong',
+  'Opener',
+  'Encore',
+  'Christmas',
+  'Requests',
+];
 
 /**
  * A song's place in the working repertoire. Replaces Version 1/2's separate

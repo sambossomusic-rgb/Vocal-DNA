@@ -3,12 +3,21 @@ import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
 import type { Song, Artist, Folder, Rating } from '../../types/domain';
 import { CHROMATIC_NOTES } from '../../types/domain';
-import { RatingForm } from '../rating/RatingForm';
+import { SongEditor } from './SongEditor';
 import { TagEditor } from '../tags/TagEditor';
 
 interface Props {
   songId: string;
+  contextIds: string[]; // the ordered list this song was opened from (for Prev/Next)
+  onNavigate: (songId: string) => void;
   onBack: () => void;
+}
+
+interface LoadedData {
+  song: Song | null;
+  artist?: Artist;
+  folder?: Folder;
+  rating?: Rating;
 }
 
 async function stepKey(song: Song, direction: 1 | -1): Promise<void> {
@@ -22,31 +31,41 @@ async function stepKey(song: Song, direction: 1 | -1): Promise<void> {
   bumpDataVersion();
 }
 
-export function SongDetailView({ songId, onBack }: Props): JSX.Element {
+export function SongDetailView({ songId, contextIds, onNavigate, onBack }: Props): JSX.Element {
   const dataVersion = useDataVersion();
 
-  const song = useLiveQuery<Song | undefined>(
-    () => db.songs.get(songId),
+  // One combined query so the editor never initialises from a half-loaded
+  // state (a separate async rating query could arrive after the editor mounts
+  // and silently drop an existing rating). `null` means "still loading".
+  const data = useLiveQuery<LoadedData | null>(
+    async () => {
+      const song = await db.songs.get(songId);
+      if (!song) return { song: null };
+      const artist = song.artistId ? await db.artists.get(song.artistId) : undefined;
+      const folder = song.folderId ? await db.folders.get(song.folderId) : undefined;
+      const rating = await db.ratings.get(songId);
+      return { song, artist, folder, rating };
+    },
     [songId, dataVersion],
-    undefined
-  );
-  const artist = useLiveQuery<Artist | undefined>(
-    async () => (song?.artistId ? db.artists.get(song.artistId) : undefined),
-    [song?.artistId, dataVersion],
-    undefined
-  );
-  const folder = useLiveQuery<Folder | undefined>(
-    async () => (song?.folderId ? db.folders.get(song.folderId) : undefined),
-    [song?.folderId, dataVersion],
-    undefined
-  );
-  const rating = useLiveQuery<Rating | undefined>(
-    () => db.ratings.get(songId),
-    [songId, dataVersion],
-    undefined
+    null
   );
 
-  if (!song) {
+  const currentIndex = contextIds.indexOf(songId);
+  const prevId = currentIndex > 0 ? contextIds[currentIndex - 1] : null;
+  const nextId = currentIndex >= 0 && currentIndex < contextIds.length - 1 ? contextIds[currentIndex + 1] : null;
+  const position = currentIndex >= 0 ? `${currentIndex + 1} of ${contextIds.length}` : null;
+
+  if (data === null) {
+    return (
+      <div className="app-content">
+        <button className="back-button" onClick={onBack}>
+          ‹ Back
+        </button>
+      </div>
+    );
+  }
+
+  if (data.song === null) {
     return (
       <div className="app-content">
         <button className="back-button" onClick={onBack}>
@@ -57,11 +76,16 @@ export function SongDetailView({ songId, onBack }: Props): JSX.Element {
     );
   }
 
+  const { song, artist, folder, rating } = data;
+
   return (
     <div className="app-content">
-      <button className="back-button" onClick={onBack}>
-        ‹ Back to Library
-      </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button className="back-button" onClick={onBack}>
+          ‹ Back to list
+        </button>
+        {position && <span style={{ fontSize: 13, color: 'var(--text-dim)' }}>{position}</span>}
+      </div>
 
       <h1 style={{ fontSize: 24, fontWeight: 700, marginTop: 8 }}>
         {song.title.trim() || 'Untitled'}
@@ -117,7 +141,15 @@ export function SongDetailView({ songId, onBack }: Props): JSX.Element {
 
       <div className="section-title">Your rating</div>
       <div className="card">
-        <RatingForm songId={songId} existingRating={rating} />
+        <SongEditor
+          key={songId}
+          song={song}
+          rating={rating}
+          prevId={prevId}
+          nextId={nextId}
+          onNavigate={onNavigate}
+          onBack={onBack}
+        />
       </div>
     </div>
   );

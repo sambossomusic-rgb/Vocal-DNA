@@ -146,7 +146,7 @@ export function ImportView({ onImportComplete }: Props): JSX.Element {
             style={{ marginTop: 16 }}
             onClick={() => onImportComplete?.()}
           >
-            Go to Library
+            Start assessing
           </button>
         </div>
       )}

@@ -123,45 +123,42 @@ just something on your local network serving static files.
 
 ## Using the app
 
-1. **Import** tab → choose your `.st4b` file. VocalDNA reads it once, copies
-   everything into its own local database (including StageTraxx playlists),
-   and never touches the original file again. Afterward you'll see new vs.
-   updated songs, playlists, any "potential conflicts" (matched by name
-   instead of StageTraxx ID — worth a glance), songs removed from this
-   export (never auto-deleted), duplicate titles, and a missing-metadata
-   count.
-2. **Assess** tab (the default screen) → the fast path through a whole
-   library, in three phases that each complete across every song before the
-   next begins: **Status** (🎤 Regular / 🎵 Occasional / 📚 Learning /
-   🌱 Unexplored, one tap), then **Pass One** (Demand & Reliability only,
-   prefilled from what you've already rated), then **Pass Two** (Enjoyment &
-   Fatigue only). Every rating is a five-point tap: Very Low, Low, Average,
-   Good, Excellent. A progress header tracks each phase's remaining count.
-3. **Library** tab → browse every imported song, search instantly by title
-   or artist, and filter by folder, playlist, artist, key, status, or tags
-   (all combinable). Tap **Select** to multi-select songs — tap individual
-   cards, or filter to a folder/playlist and "Select all shown", then
-   deselect any you don't want — and batch-apply a status, Demand,
-   Reliability, Transpose, tags, or clear ratings entirely across the whole
-   selection at once.
-4. Tap any song card to open its **detail page**: BPM, duration, your own
-   tags, and the detailed rating form. **Key is editable** with up/down
-   arrows — this only ever updates VocalDNA, never your StageTraxx library.
-   (No lyrics, no track list — StageTraxx already does that.)
-5. The detailed rating form rates a song on **Demand, Reliability,
-   Enjoyment, Fatigue** (five-point buttons), a **Status**, a **Transpose**
-   amount, and free-text **Notes** — useful for a deeper pass beyond the
-   fast Assess flow.
-6. **Statistics** tab → repertoire-wide numbers: song/artist/folder counts,
-   average BPM, key distribution, rating coverage, average Demand/
-   Reliability/Enjoyment/Fatigue, status breakdown, top artists, and songs
-   missing Key or BPM. Every bar and row is tappable — it jumps straight to
-   that filtered slice of the Library.
-7. **Voice Profile** tab → a profile built entirely from your own ratings:
-   strongest and weakest keys (by reliability), transpose patterns, a
-   "repertoire map" (strongest / comfort zone / growing / needs work), and a
-   recent fatigue trend — every key row, quadrant, and trend entry is
-   tappable, opening the matching songs in the Library.
+The tabs are **Assess**, **Library**, **Statistics**, and **Voice Profile**.
+
+1. **Assess** tab (the default screen) → this is the workflow hub.
+   - Tap **Import** (top of the Assess tab) to choose your `.st4b` file.
+     VocalDNA reads it once, copies everything into its own local database
+     (including StageTraxx playlists), and never touches the original.
+     Afterward you'll see new vs. updated songs, playlists, any "potential
+     conflicts" (matched by name instead of StageTraxx ID), songs removed
+     from this export (never auto-deleted), duplicate titles, and a
+     missing-metadata count.
+   - To assess, **filter to any collection** (folder + key + tag + search,
+     all combinable — e.g. "Country folder + Key G + Guitar Solo"), **tick
+     which metrics** you want to rate (Status, Vocal Demand, Performance
+     Reliability, Enjoyment, Vocal Fatigue — one or all), and walk the set
+     one song at a time. Every rating is a five-point tap (Very Low → Excellent).
+     Demand/Reliability come prefilled from what you've already rated. Toggle
+     a song **Instrumental** to re-label the vocal metrics (Playing Demand /
+     Physical Fatigue).
+2. **Library** tab → browse every song; search and filter by folder,
+   playlist, artist, key, status, or tags. Tap **Select** to multi-select —
+   individually, or "Select all shown" then deselect — and batch-apply a
+   status, Vocal Demand, Performance Reliability, tags, or clear ratings.
+3. Tap any song card to open its **detail page**: BPM, duration, tags, and
+   the full rating editor. **Key is editable** with up/down arrows (this only
+   updates VocalDNA, never StageTraxx). **Previous / Next** walk the exact
+   filtered list you opened from, and **Save & back** returns to that same
+   filtered view — so editing a folder's worth of songs is a tight loop.
+4. **Statistics** tab → repertoire-wide numbers: counts, average BPM, key
+   distribution, average Vocal Demand / Performance Reliability / Enjoyment /
+   Vocal Fatigue, status breakdown, top artists, and songs missing Key or
+   BPM. Every bar and row is tappable — it jumps to that slice of the Library.
+5. **Voice Profile** tab → built entirely from your own ratings: **recommended
+   key changes** (songs you'd likely nail more reliably in a different key,
+   with the reasoning), strongest and weakest keys, a repertoire map, and a
+   recent fatigue trend — every entry is tappable, opening the song or a
+   filtered Library view.
 
 Re-importing the same (or an updated) `.st4b` file later will **update**
 existing songs rather than duplicate them — matched by StageTraxx ID first,

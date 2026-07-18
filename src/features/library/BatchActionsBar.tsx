@@ -3,7 +3,7 @@ import { db } from '../../db/db';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
 import type { Song, Rating, RepertoireStatus, RatingValue, Keyword } from '../../types/domain';
-import { createDefaultRating, REPERTOIRE_STATUSES, REPERTOIRE_STATUS_LABELS } from '../../types/domain';
+import { createDefaultRating, REPERTOIRE_STATUSES, REPERTOIRE_STATUS_LABELS, metricLabel } from '../../types/domain';
 import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 
 interface Props {
@@ -21,7 +21,6 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
   const dataVersion = useDataVersion();
   const allTags = useLiveQuery<Keyword[]>(() => db.keywords.toArray(), [dataVersion], []);
 
-  const [transposeValue, setTransposeValue] = useState(0);
   const [demandValue, setDemandValue] = useState<RatingValue>(MID_SCALE);
   const [reliabilityValue, setReliabilityValue] = useState<RatingValue>(MID_SCALE);
   const [tagIdsToAdd, setTagIdsToAdd] = useState<Set<string>>(new Set());
@@ -50,22 +49,15 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
     await patchAllRatings((r) => ({ ...r, status, ratedAt: new Date().toISOString() }));
   }
 
-  async function applyTranspose(): Promise<void> {
-    if (songs.length === 0) return;
-    const sign = transposeValue > 0 ? '+' : '';
-    if (!window.confirm(`Set transpose to ${sign}${transposeValue} for ${songs.length} songs?`)) return;
-    await patchAllRatings((r) => ({ ...r, transpose: transposeValue, ratedAt: new Date().toISOString() }));
-  }
-
   async function applyDemand(): Promise<void> {
     if (songs.length === 0) return;
-    if (!window.confirm(`Set Demand to ${demandValue} for ${songs.length} songs?`)) return;
+    if (!window.confirm(`Set ${metricLabel('demand')} to ${demandValue} for ${songs.length} songs?`)) return;
     await patchAllRatings((r) => ({ ...r, demand: demandValue, ratedAt: new Date().toISOString() }));
   }
 
   async function applyReliability(): Promise<void> {
     if (songs.length === 0) return;
-    if (!window.confirm(`Set Reliability to ${reliabilityValue} for ${songs.length} songs?`)) return;
+    if (!window.confirm(`Set ${metricLabel('reliability')} to ${reliabilityValue} for ${songs.length} songs?`)) return;
     await patchAllRatings((r) => ({ ...r, reliability: reliabilityValue, ratedAt: new Date().toISOString() }));
   }
 
@@ -138,39 +130,15 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
         ))}
       </div>
 
-      <ScaleButtonGrid label="Set Demand" value={demandValue} onChange={setDemandValue} />
+      <ScaleButtonGrid label={`Set ${metricLabel('demand')}`} value={demandValue} onChange={setDemandValue} />
       <button className="button-primary" disabled={busy} onClick={applyDemand} style={{ marginBottom: 18 }}>
-        Apply Demand to all
+        Apply {metricLabel('demand')} to all
       </button>
 
-      <ScaleButtonGrid label="Set Reliability" value={reliabilityValue} onChange={setReliabilityValue} />
+      <ScaleButtonGrid label={`Set ${metricLabel('reliability')}`} value={reliabilityValue} onChange={setReliabilityValue} />
       <button className="button-primary" disabled={busy} onClick={applyReliability} style={{ marginBottom: 18 }}>
-        Apply Reliability to all
+        Apply {metricLabel('reliability')} to all
       </button>
-
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
-        <label style={{ fontSize: 14, color: 'var(--text-dim)' }}>Transpose</label>
-        <button
-          className="button-secondary"
-          style={{ padding: '10px 16px' }}
-          onClick={() => setTransposeValue((t) => Math.max(-12, t - 1))}
-        >
-          −
-        </button>
-        <div style={{ minWidth: 40, textAlign: 'center', fontWeight: 600 }}>
-          {transposeValue > 0 ? `+${transposeValue}` : transposeValue}
-        </div>
-        <button
-          className="button-secondary"
-          style={{ padding: '10px 16px' }}
-          onClick={() => setTransposeValue((t) => Math.min(12, t + 1))}
-        >
-          +
-        </button>
-        <button className="button-primary" disabled={busy} onClick={applyTranspose}>
-          Apply to all
-        </button>
-      </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>Add tags</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>

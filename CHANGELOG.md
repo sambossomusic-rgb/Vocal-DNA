@@ -2,6 +2,68 @@
 
 All notable changes to VocalDNA are recorded here.
 
+## [3.1.0] — Version 3 final workflow improvements
+
+Editing hundreds of songs should be fast and flexible. No schema migration —
+the one new stored field (a song's instrumental flag) is optional and
+non-indexed.
+
+### Assess
+
+- **Assess any filtered collection.** The Assess tab now has its own full
+  filter panel (folder / playlist / artist / key / status / tags / search,
+  all combinable) — it assesses exactly whatever the filters currently show
+  (e.g. Country folder + Key G + a tag).
+- **Choose which metrics to assess** with checkboxes — Vocal Demand,
+  Performance Reliability, Enjoyment, Vocal Fatigue (and Status). Assess one
+  or all; no forced order or two-pass sequence. Each song's card shows only
+  the chosen metrics, and saving writes only those (never clobbering the
+  others). Reassessment is allowed — the walk covers every filtered song, not
+  just unrated ones. Previous/Next move through the queue.
+
+### Terminology
+
+- Demand → **Vocal Demand**, Reliability → **Performance Reliability**
+  everywhere they're shown.
+
+### Instrumental mode
+
+- A song can be marked **Instrumental** (toggle in the Assess card and Song
+  Detail). When it is, the labels re-read: Demand → *Playing Demand*,
+  Fatigue → *Physical Fatigue*; Reliability and Enjoyment are unchanged.
+
+### Song Detail / editing workflow
+
+- **Previous / Next** buttons walk the exact filtered list the song was
+  opened from — editing a folder's worth of songs is now a tight loop.
+- **Save & back** returns to that same filtered view (e.g. back to the
+  Country folder), not the whole library.
+- **Transpose removed** — changing the Key is the mechanism that matters now.
+  (The stored field is left dormant; nothing edits it.)
+
+### Tags
+
+- The tag editor now offers a curated set of common performance tags (Guitar
+  Solo, Duet, Instrumental, Dance, Audience Favourite, Singalong, Opener,
+  Encore, Christmas, Requests) as one-tap create-and-attach chips. Any custom
+  tag can still be typed.
+
+### Import
+
+- Import moved **under the Assess tab** (a segmented Assess / Import switch)
+  as the start of the assessment workflow; the Library tab is now purely for
+  browsing. The top navigation is Assess / Library / Statistics / Voice
+  Profile.
+
+### Voice Profile
+
+- New **Recommended key changes** report — for songs you rate lower on
+  Performance Reliability that sit outside your most reliable key, it suggests
+  the stronger key with the confidence gain and the exact reason
+  (`You rate this 2/5 in C; you average 5.0/5 across 4 songs in G`). Purely
+  statistical from your own ratings, always a suggestion. Replaces the now-
+  removed Transpose Patterns section.
+
 ## [3.0.0] — Version 3
 
 ### Rating scale
