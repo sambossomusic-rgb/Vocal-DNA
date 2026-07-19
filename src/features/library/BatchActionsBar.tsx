@@ -1,9 +1,17 @@
 import { useState } from 'react';
 import { db } from '../../db/db';
+import { saveRating } from '../../db/saveRating';
 import { useLiveQuery } from '../../db/useLiveQuery';
 import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
 import type { Song, Rating, RepertoireStatus, RatingValue, Keyword } from '../../types/domain';
-import { createDefaultRating, REPERTOIRE_STATUSES, REPERTOIRE_STATUS_LABELS, metricLabel } from '../../types/domain';
+import {
+  createDefaultRating,
+  REPERTOIRE_STATUSES,
+  REPERTOIRE_STATUS_LABELS,
+  metricLabel,
+  scaleLabelsForMetric,
+  CHROMATIC_NOTES,
+} from '../../types/domain';
 import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 
 interface Props {
@@ -13,9 +21,10 @@ interface Props {
 const MID_SCALE: RatingValue = 3;
 
 /**
- * Batch edits for an explicit multi-select (Priority 4). Every action here
- * only ever patches the one field it's responsible for — existing fields on
- * each song's rating are always preserved via spread, never overwritten.
+ * Batch edits for an explicit multi-select (Priority 4 / V4 item 3). Every
+ * rating action only ever patches the one field it's responsible for —
+ * existing fields on each song's rating are preserved via spread, never
+ * overwritten — and every write goes through saveRating so history is logged.
  */
 export function BatchActionsBar({ songs }: Props): JSX.Element {
   const dataVersion = useDataVersion();
@@ -25,6 +34,8 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
   const [reliabilityValue, setReliabilityValue] = useState<RatingValue>(MID_SCALE);
   const [tagIdsToAdd, setTagIdsToAdd] = useState<Set<string>>(new Set());
   const [newTagName, setNewTagName] = useState('');
+  const [notesValue, setNotesValue] = useState('');
+  const [keyValue, setKeyValue] = useState('C');
   const [busy, setBusy] = useState(false);
 
   async function existingOrDefaultRating(songId: string): Promise<Rating> {
@@ -33,10 +44,10 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
 
   async function patchAllRatings(patch: (rating: Rating) => Rating): Promise<void> {
     setBusy(true);
-    await db.transaction('rw', db.ratings, async () => {
+    await db.transaction('rw', [db.ratings, db.assessmentHistory, db.songs], async () => {
       for (const song of songs) {
         const rating = await existingOrDefaultRating(song.id);
-        await db.ratings.put(patch(rating));
+        await saveRating(patch(rating));
       }
     });
     bumpDataVersion();
@@ -61,9 +72,36 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
     await patchAllRatings((r) => ({ ...r, reliability: reliabilityValue, ratedAt: new Date().toISOString() }));
   }
 
+  async function applyNotes(): Promise<void> {
+    const text = notesValue.trim();
+    if (songs.length === 0 || !text) return;
+    if (!window.confirm(`Append this note to ${songs.length} songs?`)) return;
+    await patchAllRatings((r) => ({
+      ...r,
+      notes: r.notes ? `${r.notes}\n${text}` : text,
+      ratedAt: new Date().toISOString(),
+    }));
+    setNotesValue('');
+  }
+
+  // Batch Key writes the song's own keyNote (V4 item 3) — VocalDNA only, never
+  // StageTraxx. It does not touch ratings, so it doesn't go through saveRating.
+  async function applyKey(): Promise<void> {
+    if (songs.length === 0) return;
+    if (!window.confirm(`Set Key to ${keyValue} for ${songs.length} songs? (VocalDNA only — not StageTraxx)`)) return;
+    setBusy(true);
+    await db.transaction('rw', db.songs, async () => {
+      for (const song of songs) {
+        await db.songs.update(song.id, { keyNote: keyValue, updatedAt: new Date().toISOString() });
+      }
+    });
+    bumpDataVersion();
+    setBusy(false);
+  }
+
   async function clearRatings(): Promise<void> {
     if (songs.length === 0) return;
-    if (!window.confirm(`Clear all ratings for ${songs.length} songs? This cannot be undone.`)) return;
+    if (!window.confirm(`Clear the current rating for ${songs.length} songs? (Assessment history is kept.)`)) return;
     setBusy(true);
     await db.transaction('rw', db.ratings, async () => {
       for (const song of songs) await db.ratings.delete(song.id);
@@ -130,7 +168,12 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
         ))}
       </div>
 
-      <ScaleButtonGrid label={`Set ${metricLabel('demand')}`} value={demandValue} onChange={setDemandValue} />
+      <ScaleButtonGrid
+        label={`Set ${metricLabel('demand')}`}
+        value={demandValue}
+        onChange={setDemandValue}
+        scaleLabels={scaleLabelsForMetric('demand')}
+      />
       <button className="button-primary" disabled={busy} onClick={applyDemand} style={{ marginBottom: 18 }}>
         Apply {metricLabel('demand')} to all
       </button>
@@ -139,6 +182,34 @@ export function BatchActionsBar({ songs }: Props): JSX.Element {
       <button className="button-primary" disabled={busy} onClick={applyReliability} style={{ marginBottom: 18 }}>
         Apply {metricLabel('reliability')} to all
       </button>
+
+      <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>Set key (VocalDNA only)</div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18, flexWrap: 'wrap' }}>
+        <select className="select-input" value={keyValue} onChange={(e) => setKeyValue(e.target.value)}>
+          {CHROMATIC_NOTES.map((note) => (
+            <option key={note} value={note}>
+              {note}
+            </option>
+          ))}
+        </select>
+        <button className="button-primary" disabled={busy} onClick={applyKey}>
+          Apply Key to all
+        </button>
+      </div>
+
+      <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>Append note</div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+        <input
+          className="text-input"
+          placeholder="Note to append to all selected…"
+          value={notesValue}
+          onChange={(e) => setNotesValue(e.target.value)}
+          style={{ flex: 1 }}
+        />
+        <button className="button-primary" disabled={busy || !notesValue.trim()} onClick={applyNotes}>
+          Append
+        </button>
+      </div>
 
       <div style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 6 }}>Add tags</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>

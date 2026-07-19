@@ -2,6 +2,77 @@
 
 All notable changes to VocalDNA are recorded here.
 
+## [4.0.0] — Version 4 (maintenance, sync, and intelligence prep)
+
+Turns VocalDNA from a first-time assessment tool into an ongoing repertoire
+maintenance and analysis system. Dexie bumped to **version 5** — additive
+only (one new `assessmentHistory` table); no existing table, index, or data
+was changed.
+
+### Sync Wizard (replaces Import)
+
+- A new **Sync Wizard** replaces the plain importer. It **previews every
+  change before writing** (new songs, per-field metadata updates, new
+  folders/playlists/keywords, name-matched songs, songs removed from the
+  export), then applies only the categories you tick: New songs, Title &
+  artist, Folders, BPM, Play counts, Playlists, Keywords→tags, Keys.
+- **Smarter, safer sync (never overwrites assessments).** The sync engine
+  only ever writes to source-owned tables (songs/artists/folders/playlists/
+  keywords) and adds keywords additively, so **Ratings, Status, Notes, your
+  Tags, and Assessment History are structurally out of reach** — a re-sync
+  cannot touch them. Songs are matched by StageTraxx ID then artist+title, so
+  an ID change can't duplicate a song. **Keys default to OFF** so keys you've
+  changed inside VocalDNA are protected; tick Keys only if you want StageTraxx
+  to win. Verified end-to-end (a local key edit + rating survived a re-sync
+  while BPM updated).
+
+### Voice Profile
+
+- **Analyses active repertoire by default** (Regular + Occasional); Unexplored
+  songs never skew it, and a toggle opts Learning in.
+- **Recommended Key Reviews** (items 12/13) — a ranked working list of songs
+  worth experimenting with, using high Vocal Demand, lower Performance
+  Reliability, higher Vocal Fatigue, and nearby keys already succeeding in
+  your own data. Shows current key → suggested test key, ★ confidence, and a
+  plain-language reason; tapping opens the song. Not automatic key changes —
+  the list for updating StageTraxx by hand.
+
+### Statistics — Metadata Health
+
+- A dedicated **Metadata Health** report: Missing Key, Missing BPM, Missing
+  artist, No folder, and Duplicate titles — every row tappable through to the
+  matching Library view. Every statistic remains live and clickable.
+
+### Library batch editing
+
+- Multi-select batch actions now also set **Notes** (append) and **Key**
+  (VocalDNA-only), alongside Status / Vocal Demand / Performance Reliability /
+  Tags / Clear ratings.
+
+### Vocal Demand scale
+
+- Vocal Demand now reads **Very Low / Low / Average / Tough / Challenging**
+  (item 12) — a song rated Tough/Challenging is automatically a key-review
+  candidate. Other metrics keep the generic 1-5 wording.
+
+### Intelligence preparation
+
+- New append-only **`assessmentHistory`** table; every rating save (assess,
+  song editor, batch) now goes through a single `saveRating` helper that logs
+  a timestamped snapshot — the timeline future "becoming stronger/weaker" and
+  rotation features will read.
+- New **`analytics/recommendationEngine.ts`** — the pure, statistical seam the
+  future coach grows from. Implements key-review candidates, plus starter
+  functions for "songs to learn next" and "forgotten songs", and documents the
+  remaining roadmap kinds (hidden gems, trend, warm-up, setlist balancing,
+  venue/dance/audience/encore/rotation) as typed placeholders the data model
+  already supports.
+
+### Removed
+
+- The old `ImportView` and `st4bImporter` (superseded by `SyncWizard` +
+  `syncEngine`).
+
 ## [3.1.0] — Version 3 final workflow improvements
 
 Editing hundreds of songs should be fast and flexible. No schema migration —

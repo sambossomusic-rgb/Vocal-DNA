@@ -9,10 +9,9 @@ import type { FilterState } from '../library/FilterPanel';
 
 interface Props {
   onNavigateToLibrary: (filterPatch: Partial<FilterState>, label?: string) => void;
-  onOpenSong: (songId: string, contextIds: string[]) => void;
 }
 
-export function StatsView({ onNavigateToLibrary, onOpenSong }: Props): JSX.Element {
+export function StatsView({ onNavigateToLibrary }: Props): JSX.Element {
   const dataVersion = useDataVersion();
   const songs = useLiveQuery<Song[]>(() => db.songs.toArray(), [dataVersion], []);
   const artists = useLiveQuery<Artist[]>(() => db.artists.toArray(), [dataVersion], []);
@@ -136,53 +135,58 @@ export function StatsView({ onNavigateToLibrary, onOpenSong }: Props): JSX.Eleme
         ))}
       </div>
 
-      {stats.missingMetadata.length > 0 && (
-        <>
-          <div
-            className="section-title"
-            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}
-          >
-            <span>Metadata needing completion ({stats.missingMetadata.length})</span>
-            <button
-              className="button-secondary"
-              style={{ minHeight: 32, padding: '4px 12px', fontSize: 12 }}
-              onClick={() =>
-                onNavigateToLibrary(
-                  { songIds: stats.missingMetadata.map((m) => m.songId) },
-                  'Metadata needing completion'
-                )
-              }
-            >
-              View all in Library
-            </button>
-          </div>
-          <div className="card">
-            <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 0 }}>
-              Missing Key or BPM — fix these in StageTraxx, then re-import.
-            </p>
-            {stats.missingMetadata.slice(0, 20).map((m) => (
-              <button
-                key={m.songId}
-                className="clickable-row"
-                style={{ justifyContent: 'space-between', padding: '6px 0', fontSize: 13 }}
-                onClick={() => onOpenSong(m.songId, stats.missingMetadata.map((x) => x.songId))}
-              >
-                <span>
-                  {m.title} — {m.artistName}
-                </span>
-                <span style={{ color: 'var(--text-dim)' }}>
-                  {[m.missingKey ? 'Key' : null, m.missingBpm ? 'BPM' : null].filter(Boolean).join(', ')}
-                </span>
-              </button>
-            ))}
-            {stats.missingMetadata.length > 20 && (
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
-                +{stats.missingMetadata.length - 20} more — use "View all in Library" above.
-              </div>
-            )}
-          </div>
-        </>
-      )}
+      <div className="section-title">Metadata health</div>
+      <div className="card">
+        <p style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 0 }}>
+          Gaps to fix in StageTraxx, then re-sync. Tap a row to open those songs in the Library.
+        </p>
+        {(() => {
+          const h = stats.metadataHealth;
+          const rows: Array<{ label: string; ids: string[] }> = [
+            { label: 'Missing Key', ids: h.missingKey.map((s) => s.songId) },
+            { label: 'Missing BPM', ids: h.missingBpm.map((s) => s.songId) },
+            { label: 'Missing artist', ids: h.missingArtist.map((s) => s.songId) },
+            { label: 'No folder', ids: h.noFolder.map((s) => s.songId) },
+          ];
+          const anyIssues =
+            rows.some((r) => r.ids.length > 0) || h.duplicateTitles.length > 0;
+          if (!anyIssues) {
+            return <div style={{ fontSize: 13, color: 'var(--success)' }}>All clear — no metadata gaps. ✓</div>;
+          }
+          return (
+            <>
+              {rows.map((r) => (
+                <button
+                  key={r.label}
+                  className="clickable-row"
+                  style={{ justifyContent: 'space-between', padding: '8px 0', fontSize: 14 }}
+                  disabled={r.ids.length === 0}
+                  onClick={() => r.ids.length > 0 && onNavigateToLibrary({ songIds: r.ids }, r.label)}
+                >
+                  <span>{r.label}</span>
+                  <span style={{ color: r.ids.length ? 'var(--warning)' : 'var(--text-dim)' }}>{r.ids.length}</span>
+                </button>
+              ))}
+              {h.duplicateTitles.length > 0 && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 13, marginBottom: 4 }}>Duplicate titles ({h.duplicateTitles.length})</div>
+                  {h.duplicateTitles.slice(0, 15).map((g) => (
+                    <button
+                      key={g.title}
+                      className="clickable-row"
+                      style={{ justifyContent: 'space-between', padding: '5px 0', fontSize: 13 }}
+                      onClick={() => onNavigateToLibrary({ songIds: g.songIds }, `Duplicates of "${g.title}"`)}
+                    >
+                      <span style={{ color: 'var(--text-dim)' }}>{g.title}</span>
+                      <span>{g.count}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </div>
     </div>
   );
 }

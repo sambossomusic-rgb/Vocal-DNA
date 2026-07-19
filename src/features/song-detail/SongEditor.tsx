@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { db } from '../../db/db';
+import { saveRating } from '../../db/saveRating';
 import { bumpDataVersion } from '../../db/dataVersion';
 import type { Song, Rating, RepertoireStatus, RatingValue } from '../../types/domain';
-import { createDefaultRating, metricLabel } from '../../types/domain';
+import { createDefaultRating, metricLabel, scaleLabelsForMetric } from '../../types/domain';
 import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 import { StatusPicker } from '../../components/StatusPicker';
 
@@ -42,10 +43,10 @@ export function SongEditor({ song, rating, prevId, nextId, onNavigate, onBack }:
       notes,
       ratedAt: new Date().toISOString(),
     };
-    await db.ratings.put(next);
     if ((song.isInstrumental ?? false) !== isInstrumental) {
       await db.songs.update(song.id, { isInstrumental, updatedAt: new Date().toISOString() });
     }
+    await saveRating(next);
     bumpDataVersion();
   }
 
@@ -74,7 +75,12 @@ export function SongEditor({ song, rating, prevId, nextId, onNavigate, onBack }:
       </div>
       <StatusPicker value={status} onChange={setStatus} />
 
-      <ScaleButtonGrid label={metricLabel('demand', isInstrumental)} value={demand} onChange={setDemand} />
+      <ScaleButtonGrid
+        label={metricLabel('demand', isInstrumental)}
+        value={demand}
+        onChange={setDemand}
+        scaleLabels={scaleLabelsForMetric('demand')}
+      />
       <ScaleButtonGrid label={metricLabel('reliability', isInstrumental)} value={reliability} onChange={setReliability} />
       <ScaleButtonGrid label={metricLabel('enjoyment', isInstrumental)} value={enjoyment} onChange={setEnjoyment} />
       <ScaleButtonGrid label={metricLabel('fatigue', isInstrumental)} value={fatigue} onChange={setFatigue} />

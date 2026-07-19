@@ -91,7 +91,7 @@ export function App(): JSX.Element {
             onSearchChange={setLibrarySearch}
           />
         )}
-        {tab === 'stats' && <StatsView onNavigateToLibrary={navigateToLibrary} onOpenSong={openSong} />}
+        {tab === 'stats' && <StatsView onNavigateToLibrary={navigateToLibrary} />}
         {tab === 'voice-profile' && (
           <VoiceProfileView onOpenSong={openSong} onNavigateToLibrary={navigateToLibrary} />
         )}

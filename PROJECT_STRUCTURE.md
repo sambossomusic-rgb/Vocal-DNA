@@ -1,5 +1,9 @@
 # Project Structure
 
+> For the authoritative, up-to-date architecture + schema + roadmap, see
+> **`HANDOVER.md`**. This file is the quick file-by-file map.
+
+
 ```
 vocaldna/
 ├── README.md                      How to run it, including iPad setup
@@ -50,53 +54,41 @@ vocaldna/
     │
     ├── db/
     │   ├── db.ts                  Dexie database class — the actual IndexedDB schema.
-    │   │                          Table names/shapes are VocalDNA's own, not mirrored
-    │   │                          from StageTraxx. Version 2 added the reserved
-    │   │                          performanceHistory table; Version 3 (app v2.1)
-    │   │                          consolidated Rating's fields; Version 4 (app v3)
-    │   │                          rescales 1-10 ratings onto 1-5 — all data-only,
-    │   │                          no index/schema changes past version 2.
+    │   │                          Versions v1–v5 (see HANDOVER.md); v5 (app v4) adds
+    │   │                          the append-only assessmentHistory table.
+    │   ├── saveRating.ts          THE single rating write path (v4): persists the
+    │   │                          rating AND appends an assessmentHistory snapshot.
     │   ├── useLiveQuery.ts        Small hook that re-runs a query when a dependency
     │   │                          (usually the global data version) changes
     │   └── dataVersion.ts         Global "data changed" counter — bumped after any
-    │                              write (import, rating save) so every screen
-    │                              reading that data refreshes automatically
+    │                              write so every screen refreshes automatically
     │
     ├── import/
     │   ├── idMapper.ts            Generic external-id ⇄ internal-UUID resolver.
-    │   │                          This is what makes repeat imports update existing
-    │   │                          rows instead of duplicating them, for ANY future
-    │   │                          import source, not just StageTraxx.
-    │   └── st4bImporter.ts        Reads a .st4b file (browser File object, read-only
-    │                              by construction), unzips it with JSZip, maps
-    │                              songs/artists/folders/playlists into VocalDNA's
-    │                              schema inside a single Dexie transaction. Version 3
-    │                              added artist+title fallback matching (a StageTraxx
-    │                              ID changing between exports no longer creates a
-    │                              duplicate) and a richer summary (potential
-    │                              conflicts, removed songs, duplicate titles,
-    │                              missing metadata). No longer imports tracks.
+    │   └── syncEngine.ts          v4 — parseBackup / analyzeSync (read-only diff) /
+    │                              applySync (writes only the ticked categories,
+    │                              never ratings/history). Matches by StageTraxx ID
+    │                              then artist+title. Replaces st4bImporter.
     │
-    ├── analytics/
-    │   ├── statsEngine.ts         Pure functions computing the Statistics dashboard's
-    │   │                          data. Zero React/UI imports — takes plain arrays,
-    │   │                          returns a plain object.
-    │   ├── voiceProfileEngine.ts  Pure functions computing the Voice Profile
-    │   │                          dashboard's data (key reliability, repertoire
-    │   │                          quadrants, fatigue trend, and v3.1's
-    │   │                          recommended key changes). Zero UI imports.
-    │   └── predictionEngine.ts    Pure statistical learning (no AI): per-tag
-    │                              demand/reliability/status averages blended into
-    │                              a single per-song prediction (prefills Assess).
+    ├── analytics/                 ALL pure — arrays in, plain data out, no UI/DB.
+    │   ├── statsEngine.ts         Statistics snapshot + Metadata Health (missing
+    │   │                          key/bpm/artist, no folder, duplicate titles).
+    │   ├── voiceProfileEngine.ts  Voice Profile (keys, quadrants, fatigue trend),
+    │   │                          filtered to active repertoire by default (v4).
+    │   ├── predictionEngine.ts    Per-tag/global demand/reliability/status
+    │   │                          prediction (prefills Assess).
+    │   └── recommendationEngine.ts v4 — key-review candidates (ranked, ★ confidence,
+    │                              suggested test key, reason) + future-engine
+    │                              scaffold (learn-next, forgotten, typed roadmap).
     │
     └── features/
         ├── import/
-        │   └── ImportView.tsx           File picker + import trigger + result
-        │                                 summary. Rendered inside the Assess tab
-        │                                 (v3.1), not a top-level tab.
+        │   └── SyncWizard.tsx           v4 — preview every change, tick which
+        │                                 categories to apply, summary. Rendered
+        │                                 inside the Assess tab's Sync sub-mode.
         │
-        ├── assess/                      Assess workflow (v3.1)
-        │   ├── AssessView.tsx           Assess/Import switch; owns the filter panel,
+        ├── assess/                      Assess workflow
+        │   ├── AssessView.tsx           Assess/Sync switch; owns the filter panel,
         │   │                            metric checkboxes, and the walk through the
         │   │                            filtered collection (reuses useLibraryData)
         │   ├── AssessCard.tsx           One song's card — shows only the chosen
@@ -120,9 +112,9 @@ vocaldna/
         │   ├── FilterPanel.tsx          Folder / playlist / artist / key / status /
         │   │                            tag / songIds filter controls (shared by
         │   │                            Library and Assess)
-        │   └── BatchActionsBar.tsx      Explicit multi-select batch actions: change
-        │                                 status, set Vocal Demand / Performance
-        │                                 Reliability, add tags (additive), clear ratings
+        │   └── BatchActionsBar.tsx      Multi-select batch actions: status, Vocal
+        │                                 Demand, Performance Reliability, Key, Notes
+        │                                 (append), Tags (additive), clear ratings (v4)
         │
         ├── song-detail/
         │   ├── SongDetailView.tsx       Loads the song (one combined query) and lays
@@ -133,13 +125,13 @@ vocaldna/
         │                                 Next all persist the same edits (v3.1)
         │
         ├── stats/
-        │   └── StatsView.tsx            Statistics dashboard UI. Every bar/row is
-        │                                 clickable, navigating to a filtered Library.
+        │   └── StatsView.tsx            Statistics dashboard UI (clickable) +
+        │                                 Metadata Health report (v4).
         │
         └── voice-profile/
-            └── VoiceProfileView.tsx      Voice Profile dashboard UI. Recommended key
-                                           changes, quadrants, key rows, and the
-                                           fatigue trend are all clickable.
+            └── VoiceProfileView.tsx      Voice Profile UI: active-repertoire scope
+                                           toggle, Recommended Key Reviews (★), keys,
+                                           quadrants, fatigue trend — all clickable (v4).
 ```
 
 ## Architectural rules this structure enforces

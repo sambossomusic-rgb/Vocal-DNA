@@ -7,6 +7,7 @@ import type {
   Rating,
   RepertoireStatus,
   RatingValue,
+  AssessmentHistoryEntry,
   ExternalIdMapping,
   ImportLogEntry,
   Setting,
@@ -106,6 +107,9 @@ export class VocalDnaDatabase extends Dexie {
   // schema is stable, populated by nothing in Version 2.
   performanceHistory!: Table<PerformanceHistoryEntry, string>;
 
+  // Version 4 — append-only log of rating snapshots (intelligence prep).
+  assessmentHistory!: Table<AssessmentHistoryEntry, string>;
+
   constructor() {
     super('vocaldna');
 
@@ -197,6 +201,13 @@ export class VocalDnaDatabase extends Dexie {
             row.fatigue = scaleTenToFive(row.fatigue);
           });
       });
+
+    // Version 4 (app v4) — adds the append-only assessmentHistory table
+    // (intelligence prep). Additive only; no existing table/index changes,
+    // no data transform.
+    this.version(5).stores({
+      assessmentHistory: 'id, songId, recordedAt',
+    });
   }
 }
 

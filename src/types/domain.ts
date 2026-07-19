@@ -78,6 +78,27 @@ export const RATING_SCALE_LABELS: Record<RatingValue, string> = {
 };
 
 /**
+ * Vocal Demand uses performer-facing wording (Version 4, item 12) that makes
+ * it obvious which songs are candidates for a key review: a song consistently
+ * rated Tough/Challenging is a key-review candidate (see recommendationEngine).
+ */
+export const DEMAND_SCALE_LABELS: Record<RatingValue, string> = {
+  1: 'Very Low',
+  2: 'Low',
+  3: 'Average',
+  4: 'Tough',
+  5: 'Challenging',
+};
+
+/** Demand (and its instrumental equivalent, Playing Demand) gets its own scale wording; other metrics use the generic labels. */
+export function scaleLabelsForMetric(metric: NumericMetric): Record<RatingValue, string> {
+  return metric === 'demand' ? DEMAND_SCALE_LABELS : RATING_SCALE_LABELS;
+}
+
+/** A song rated at or above this on Vocal Demand is automatically a key-review candidate. */
+export const DEMAND_REVIEW_THRESHOLD: RatingValue = 4;
+
+/**
  * The four numeric rating dimensions, plus the special `status` axis. The
  * Version 3 workflow update lets the performer choose which of these to
  * assess (Assess tab) rather than forcing a fixed order.
@@ -265,6 +286,25 @@ export interface PerformanceHistoryEntry {
   id: string;
   songId: string;
   createdAt: string;
+}
+
+/**
+ * A point-in-time snapshot of a song's rating, appended every time the rating
+ * is saved (Version 4 — intelligence prep). `ratings` holds only the current
+ * value; this append-only log is what future "becoming stronger / weaker"
+ * and rotation analyses read. This is a VocalDNA assessment record and must
+ * never be overwritten by a StageTraxx sync.
+ */
+export interface AssessmentHistoryEntry {
+  id: string; // VocalDNA-owned UUID
+  songId: string;
+  recordedAt: string; // ISO timestamp
+  demand: RatingValue | null;
+  reliability: RatingValue | null;
+  enjoyment: RatingValue | null;
+  fatigue: RatingValue | null;
+  status: RepertoireStatus;
+  keyNote: string | null; // the song's key at the time, so key changes are visible in history
 }
 
 /**

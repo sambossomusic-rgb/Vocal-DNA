@@ -1,17 +1,18 @@
 import { useMemo, useState } from 'react';
 import { db } from '../../db/db';
+import { saveRating } from '../../db/saveRating';
 import { bumpDataVersion } from '../../db/dataVersion';
 import type { Rating, AssessMetric } from '../../types/domain';
 import { createDefaultRating, ASSESS_METRICS } from '../../types/domain';
 import { computeTagLearning, computeGlobalLearning, predictForSong } from '../../analytics/predictionEngine';
 import { FilterPanel, type FilterState, EMPTY_FILTERS } from '../library/FilterPanel';
 import { useLibraryData } from '../library/useLibraryData';
-import { ImportView } from '../import/ImportView';
+import { SyncWizard } from '../import/SyncWizard';
 import { MetricToggles } from './MetricToggles';
 import { AssessCard, type AssessPatch } from './AssessCard';
 
 export function AssessView(): JSX.Element {
-  const [mode, setMode] = useState<'assess' | 'import'>('assess');
+  const [mode, setMode] = useState<'assess' | 'sync'>('assess');
   const [filters, setFilters] = useState<FilterState>(EMPTY_FILTERS);
   const [search, setSearch] = useState('');
   const [metrics, setMetrics] = useState<Set<AssessMetric>>(new Set(ASSESS_METRICS));
@@ -62,24 +63,26 @@ export function AssessView(): JSX.Element {
     if (patch.reliability !== undefined) nextRating.reliability = patch.reliability;
     if (patch.enjoyment !== undefined) nextRating.enjoyment = patch.enjoyment;
     if (patch.fatigue !== undefined) nextRating.fatigue = patch.fatigue;
-    await db.ratings.put(nextRating);
 
+    // Instrumental flag first, so the history snapshot inside saveRating
+    // reads the up-to-date song.
     if ((current.isInstrumental ?? false) !== patch.isInstrumental) {
       await db.songs.update(current.id, {
         isInstrumental: patch.isInstrumental,
         updatedAt: new Date().toISOString(),
       });
     }
+    await saveRating(nextRating);
 
     bumpDataVersion();
     setIndex((i) => Math.max(0, Math.min(queue.length, i + delta)));
   }
 
-  if (mode === 'import') {
+  if (mode === 'sync') {
     return (
       <div>
         <ModeSwitch mode={mode} onChange={setMode} />
-        <ImportView onImportComplete={() => setMode('assess')} />
+        <SyncWizard onDone={() => setMode('assess')} />
       </div>
     );
   }
@@ -90,7 +93,7 @@ export function AssessView(): JSX.Element {
         <ModeSwitch mode={mode} onChange={setMode} />
         <div className="empty-state">
           <h2 style={{ fontSize: 18, marginBottom: 8 }}>No songs yet</h2>
-          <p>Tap Import above and choose a StageTraxx4 (.st4b) file to get started.</p>
+          <p>Tap Sync above and choose a StageTraxx4 (.st4b) file to get started.</p>
         </div>
       </div>
     );
@@ -160,7 +163,7 @@ export function AssessView(): JSX.Element {
   );
 }
 
-function ModeSwitch({ mode, onChange }: { mode: 'assess' | 'import'; onChange: (m: 'assess' | 'import') => void }): JSX.Element {
+function ModeSwitch({ mode, onChange }: { mode: 'assess' | 'sync'; onChange: (m: 'assess' | 'sync') => void }): JSX.Element {
   return (
     <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
       <button
@@ -171,11 +174,11 @@ function ModeSwitch({ mode, onChange }: { mode: 'assess' | 'import'; onChange: (
         Assess
       </button>
       <button
-        className={`tab-button ${mode === 'import' ? 'active' : ''}`}
+        className={`tab-button ${mode === 'sync' ? 'active' : ''}`}
         style={{ flex: '0 0 auto', padding: '10px 20px' }}
-        onClick={() => onChange('import')}
+        onClick={() => onChange('sync')}
       >
-        Import
+        Sync
       </button>
     </div>
   );

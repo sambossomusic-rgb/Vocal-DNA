@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { Song, Artist, Rating, AssessMetric, RatingValue, RepertoireStatus } from '../../types/domain';
-import { metricLabel } from '../../types/domain';
+import { metricLabel, scaleLabelsForMetric } from '../../types/domain';
 import type { SongPrediction } from '../../analytics/predictionEngine';
 import { ScaleButtonGrid } from '../../components/ScaleButtonGrid';
 import { StatusPicker } from '../../components/StatusPicker';
@@ -93,7 +93,12 @@ export function AssessCard({ song, artist, rating, metrics, prediction, index, t
       )}
 
       {metrics.has('demand') && (
-        <ScaleButtonGrid label={metricLabel('demand', isInstrumental)} value={demand} onChange={setDemand} />
+        <ScaleButtonGrid
+          label={metricLabel('demand', isInstrumental)}
+          value={demand}
+          onChange={setDemand}
+          scaleLabels={scaleLabelsForMetric('demand')}
+        />
       )}
       {metrics.has('reliability') && (
         <ScaleButtonGrid label={metricLabel('reliability', isInstrumental)} value={reliability} onChange={setReliability} />
