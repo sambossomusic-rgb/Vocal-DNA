@@ -26,14 +26,28 @@ export const EMPTY_FILTERS: FilterState = {
   songIdsLabel: null,
 };
 
+export interface FilterCounts {
+  folder: Map<string, number>;
+  artist: Map<string, number>;
+  key: Map<string, number>;
+  tag: Map<string, number>;
+  status: Map<RepertoireStatus, number>;
+  playlist: Map<string, number>;
+}
+
 interface Props {
   artists: Artist[];
   folders: Folder[];
   playlists: Playlist[];
   availableKeys: string[];
   tags: Keyword[];
+  counts: FilterCounts;
   value: FilterState;
   onChange: (next: FilterState) => void;
+}
+
+function withCount(label: string, count: number | undefined): string {
+  return count ? `${label} (${count})` : label;
 }
 
 export function FilterPanel({
@@ -42,6 +56,7 @@ export function FilterPanel({
   playlists,
   availableKeys,
   tags,
+  counts,
   value,
   onChange,
 }: Props): JSX.Element {
@@ -102,7 +117,7 @@ export function FilterPanel({
           <option value="">All folders</option>
           {sortedFolders.map((f) => (
             <option key={f.id} value={f.id}>
-              {f.name}
+              {withCount(f.name, counts.folder.get(f.id))}
             </option>
           ))}
         </select>
@@ -116,7 +131,7 @@ export function FilterPanel({
             <option value="">All playlists</option>
             {sortedPlaylists.map((p) => (
               <option key={p.id} value={p.id}>
-                {p.name}
+                {withCount(p.name, counts.playlist.get(p.id))}
               </option>
             ))}
           </select>
@@ -130,7 +145,7 @@ export function FilterPanel({
           <option value="">All artists</option>
           {sortedArtists.map((a) => (
             <option key={a.id} value={a.id}>
-              {a.name}
+              {withCount(a.name, counts.artist.get(a.id))}
             </option>
           ))}
         </select>
@@ -143,7 +158,7 @@ export function FilterPanel({
           <option value="">All keys</option>
           {availableKeys.map((k) => (
             <option key={k} value={k}>
-              {k}
+              {withCount(k, counts.key.get(k))}
             </option>
           ))}
         </select>
@@ -158,7 +173,7 @@ export function FilterPanel({
           <option value="">All statuses</option>
           {REPERTOIRE_STATUSES.map((s) => (
             <option key={s} value={s}>
-              {REPERTOIRE_STATUS_LABELS[s]}
+              {withCount(REPERTOIRE_STATUS_LABELS[s], counts.status.get(s))}
             </option>
           ))}
         </select>
@@ -178,7 +193,7 @@ export function FilterPanel({
               className={`tag-chip ${value.tagIds.includes(tag.id) ? 'tag-chip-assigned' : ''}`}
               onClick={() => toggleTag(tag.id)}
             >
-              {tag.name}
+              {withCount(tag.name, counts.tag.get(tag.id))}
             </button>
           ))}
         </div>

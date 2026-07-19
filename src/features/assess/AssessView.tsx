@@ -28,6 +28,7 @@ export function AssessView(): JSX.Element {
     artistById,
     tagIdsBySongId,
     availableKeys,
+    counts,
     applyFilters,
   } = useLibraryData();
 
@@ -109,6 +110,7 @@ export function AssessView(): JSX.Element {
         playlists={playlists}
         availableKeys={availableKeys}
         tags={tags}
+        counts={counts}
         value={filters}
         onChange={changeFilters}
       />

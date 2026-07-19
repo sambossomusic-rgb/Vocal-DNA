@@ -4,7 +4,9 @@ import { useDataVersion, bumpDataVersion } from '../../db/dataVersion';
 import type { Song, Artist, Folder, Rating } from '../../types/domain';
 import { CHROMATIC_NOTES } from '../../types/domain';
 import { SongEditor } from './SongEditor';
+import { SongCoachCard } from './SongCoachCard';
 import { TagEditor } from '../tags/TagEditor';
+import { setCoachDecision } from '../../db/coachState';
 
 interface Props {
   songId: string;
@@ -24,10 +26,14 @@ async function stepKey(song: Song, direction: 1 | -1): Promise<void> {
   const currentIndex = song.keyNote ? CHROMATIC_NOTES.indexOf(song.keyNote as (typeof CHROMATIC_NOTES)[number]) : -1;
   const baseIndex = currentIndex === -1 ? 0 : currentIndex;
   const nextIndex = (baseIndex + direction + CHROMATIC_NOTES.length) % CHROMATIC_NOTES.length;
+  const nextKey = CHROMATIC_NOTES[nextIndex];
   await db.songs.update(song.id, {
-    keyNote: CHROMATIC_NOTES[nextIndex],
+    keyNote: nextKey,
     updatedAt: new Date().toISOString(),
   });
+  // A manual key change supersedes any pending recommendation and flags the
+  // song for reassessment (V5 item 4).
+  await setCoachDecision(song.id, 'review-pending', nextKey);
   bumpDataVersion();
 }
 
@@ -132,6 +138,11 @@ export function SongDetailView({ songId, contextIds, onNavigate, onBack }: Props
       </div>
       <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
         Changing the key here only updates VocalDNA — it never alters your StageTraxx library.
+      </div>
+
+      <div className="section-title">Song Coach</div>
+      <div className="card">
+        <SongCoachCard song={song} rating={rating} />
       </div>
 
       <div className="section-title">Tags</div>

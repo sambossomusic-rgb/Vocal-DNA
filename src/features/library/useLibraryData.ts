@@ -62,6 +62,27 @@ export function useLibraryData() {
     return [...keys].sort();
   }, [songs]);
 
+  // Counts shown beside each filter option (V5 item 7 — "Country (184)").
+  // Computed over the whole library so the numbers are stable as you filter.
+  const counts = useMemo(() => {
+    const folder = new Map<string, number>();
+    const artist = new Map<string, number>();
+    const key = new Map<string, number>();
+    const tag = new Map<string, number>();
+    const status = new Map<RepertoireStatus, number>();
+    for (const s of songs) {
+      if (s.folderId) folder.set(s.folderId, (folder.get(s.folderId) ?? 0) + 1);
+      if (s.artistId) artist.set(s.artistId, (artist.get(s.artistId) ?? 0) + 1);
+      if (s.keyNote) key.set(s.keyNote, (key.get(s.keyNote) ?? 0) + 1);
+      const st: RepertoireStatus = ratingBySongId.get(s.id)?.status ?? 'unexplored';
+      status.set(st, (status.get(st) ?? 0) + 1);
+    }
+    for (const link of songKeywords) tag.set(link.keywordId, (tag.get(link.keywordId) ?? 0) + 1);
+    const playlist = new Map<string, number>();
+    for (const [pid, set] of songIdsByPlaylistId) playlist.set(pid, set.size);
+    return { folder, artist, key, tag, status, playlist };
+  }, [songs, ratingBySongId, songKeywords, songIdsByPlaylistId]);
+
   const applyFilters = useMemo(() => {
     return (query: string, filters: FilterState): Song[] => {
       const q = query.trim().toLowerCase();
@@ -113,6 +134,7 @@ export function useLibraryData() {
     ratingBySongId,
     tagIdsBySongId,
     availableKeys,
+    counts,
     applyFilters,
   };
 }

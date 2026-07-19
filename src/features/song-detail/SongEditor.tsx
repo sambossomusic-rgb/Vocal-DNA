@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { db } from '../../db/db';
 import { saveRating } from '../../db/saveRating';
+import { clearCoachState } from '../../db/coachState';
 import { bumpDataVersion } from '../../db/dataVersion';
 import type { Song, Rating, RepertoireStatus, RatingValue } from '../../types/domain';
 import { createDefaultRating, metricLabel, scaleLabelsForMetric } from '../../types/domain';
@@ -47,6 +48,9 @@ export function SongEditor({ song, rating, prevId, nextId, onNavigate, onBack }:
       await db.songs.update(song.id, { isInstrumental, updatedAt: new Date().toISOString() });
     }
     await saveRating(next);
+    // Reassessing clears any coach decision / Review Pending flag so a fresh
+    // recommendation can surface from the updated ratings (V5 item 4).
+    await clearCoachState(song.id);
     bumpDataVersion();
   }
 

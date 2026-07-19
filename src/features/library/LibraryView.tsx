@@ -28,6 +28,7 @@ export function LibraryView({ onOpenSong, filters, onFiltersChange, search, onSe
     folderById,
     ratingBySongId,
     availableKeys,
+    counts,
     applyFilters,
   } = useLibraryData();
 
@@ -89,6 +90,7 @@ export function LibraryView({ onOpenSong, filters, onFiltersChange, search, onSe
         playlists={playlists}
         availableKeys={availableKeys}
         tags={tags}
+        counts={counts}
         value={filters}
         onChange={onFiltersChange}
       />

@@ -2,26 +2,37 @@ import type { Song, Rating, RepertoireStatus } from '../types/domain';
 import { CHROMATIC_NOTES, DEMAND_REVIEW_THRESHOLD } from '../types/domain';
 
 /**
- * VocalDNA's recommendation layer (Version 4). Everything here is PURE and
- * STATISTICAL — it takes plain arrays in and returns plain data out, with no
- * AI and no UI imports. It is the seam the future "intelligent performance
- * coach" grows from: new recommendation kinds are added as new pure functions
- * against the same songs/ratings/history inputs, without touching the UI or
- * the database layer.
+ * VocalDNA's recommendation layer (Version 4, expanded in Version 5).
+ * Everything here is PURE and STATISTICAL — it takes plain arrays in and
+ * returns plain data out, with no AI and no UI imports. It is the seam the
+ * "intelligent performance companion" grows from: every recommendation kind
+ * is a pure function against the same songs/ratings inputs, so the UI never
+ * embeds any decision logic.
  *
- * Implemented now: key-review candidates (the working list for updating
- * StageTraxx keys), plus two lightweight starters (learn-next, forgotten).
- * The remaining kinds in `FutureRecommendationKind` are the documented
- * roadmap — the data model already supports them (ratings + assessmentHistory
- * + tags + play counts); they just need their own function here.
+ * Every function answers a repertoire-decision question (the Constitution's
+ * "better decisions over more information"): what to sing tonight, what to
+ * revive, learn, promote, practise, or review.
+ *
+ * Vocal Efficiency Review (V5 item 12) is the framing for key work: VocalDNA
+ * never says a key is "wrong". It surfaces songs where a different key MIGHT
+ * sit more comfortably, always as a supportive experiment to try, with the
+ * performer's own data as the reasoning.
  */
+
+/** The performer-facing name for the key-review philosophy (V5 item 12). */
+export const VOCAL_EFFICIENCY_REVIEW_TITLE = 'Vocal Efficiency Review';
+
 export type FutureRecommendationKind =
   | 'songs-to-learn-next'
-  | 'forgotten-songs'
+  | 'rediscover-songs'
+  | 'ready-for-promotion'
+  | 'needs-practice'
   | 'hidden-gems'
+  | 'recovery-songs'
+  | 'high-demand-songs'
+  | 'key-review-candidates'
   | 'becoming-stronger'
   | 'becoming-weaker'
-  | 'key-review-candidates'
   | 'vocal-warmup'
   | 'setlist-balancing'
   | 'venue-specific'
@@ -162,8 +173,98 @@ export function computeKeyReviewCandidates(
   return candidates.sort((a, b) => b.score - a.score || b.confidence - a.confidence);
 }
 
-// --- Lightweight starters for the future engine (V4 item 14). Real, but
-// deliberately simple — they establish the shape future work refines. ---
+// ---------------------------------------------------------------------------
+// Per-song Vocal Efficiency Review (V5 item 12)
+//
+// A supportive, single-song verdict on whether a different key is worth an
+// experiment. Never says a key is wrong — the four verdicts are: try a
+// specific key, try a little lower, current key appears optimal, or (not
+// enough data) no recommendation yet. This is what the Song Coach reads.
+// ---------------------------------------------------------------------------
+
+export type VocalEfficiencyVerdict =
+  | 'experiment-specific-key'
+  | 'experiment-lower'
+  | 'optimal'
+  | 'no-recommendation';
+
+export interface VocalEfficiencyReview {
+  verdict: VocalEfficiencyVerdict;
+  currentKey: string | null;
+  suggestedKey: string | null;
+  headline: string; // e.g. "Experiment with F#", "Current key appears optimal"
+  detail: string; // supportive reasoning
+  confidence: number; // 1-5
+}
+
+export function computeVocalEfficiencyReview(
+  song: Song,
+  rating: Rating | undefined,
+  allSongs: Song[],
+  allRatings: Rating[],
+  options: RecommendationOptions = {}
+): VocalEfficiencyReview {
+  const currentKey = song.keyNote;
+
+  if (!rating || rating.demand === null || !currentKey) {
+    return {
+      verdict: 'no-recommendation',
+      currentKey,
+      suggestedKey: null,
+      headline: 'No recommendation yet',
+      detail: 'Rate this song’s Vocal Demand and Performance Reliability to unlock a key review.',
+      confidence: 1,
+    };
+  }
+
+  // Reuse the shared candidate ranking so the single-song verdict is
+  // consistent with the Recommendations list.
+  const candidate = computeKeyReviewCandidates(allSongs, allRatings, options).find(
+    (c) => c.songId === song.id
+  );
+
+  if (!candidate) {
+    return {
+      verdict: 'optimal',
+      currentKey,
+      suggestedKey: null,
+      headline: 'Current key appears optimal',
+      detail: `Your ratings suggest ${currentKey} is sitting comfortably — no change needed.`,
+      confidence: 3,
+    };
+  }
+
+  if (candidate.suggestedTestKey && candidate.suggestedTestKey !== currentKey) {
+    const semitoneDown = transposeKey(currentKey, -1);
+    const isLower = candidate.suggestedTestKey === semitoneDown;
+    return {
+      verdict: isLower ? 'experiment-lower' : 'experiment-specific-key',
+      currentKey,
+      suggestedKey: candidate.suggestedTestKey,
+      headline: isLower
+        ? 'Experiment a little lower'
+        : `Experiment with ${candidate.suggestedTestKey}`,
+      detail: candidate.reason,
+      confidence: candidate.confidence,
+    };
+  }
+
+  return {
+    verdict: 'experiment-lower',
+    currentKey,
+    suggestedKey: transposeKey(currentKey, -1),
+    headline: 'Experiment a little lower',
+    detail: candidate.reason,
+    confidence: candidate.confidence,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Repertoire suggestion lists (V5 items 5/6)
+//
+// Each answers one decision question and returns a ranked, capped list. They
+// share one shape so the Recommendations screen renders them uniformly.
+// ---------------------------------------------------------------------------
 
 export interface SongSuggestion {
   songId: string;
@@ -171,14 +272,19 @@ export interface SongSuggestion {
   reason: string;
 }
 
+const LIST_LIMIT = 25;
+
+function join(songs: Song[], ratings: Rating[]): Array<{ song: Song; rating: Rating | undefined }> {
+  const ratingBySong = new Map(ratings.map((r) => [r.songId, r]));
+  return songs.map((s) => ({ song: s, rating: ratingBySong.get(s.id) }));
+}
+
 /** Songs the performer is actively learning, surfaced highest-enjoyment first as the natural next focus. */
 export function computeSongsToLearnNext(songs: Song[], ratings: Rating[]): SongSuggestion[] {
-  const ratingBySong = new Map(ratings.map((r) => [r.songId, r]));
-  return songs
-    .map((s) => ({ song: s, rating: ratingBySong.get(s.id) }))
+  return join(songs, ratings)
     .filter((e) => e.rating?.status === 'learning')
     .sort((a, b) => (b.rating?.enjoyment ?? 0) - (a.rating?.enjoyment ?? 0))
-    .slice(0, 20)
+    .slice(0, LIST_LIMIT)
     .map((e) => ({
       songId: e.song.id,
       title: e.song.title,
@@ -186,17 +292,120 @@ export function computeSongsToLearnNext(songs: Song[], ratings: Rating[]): SongS
     }));
 }
 
-/** In-rotation songs not played in a long time (by StageTraxx lastPlayed) — candidates to revive. */
-export function computeForgottenSongs(songs: Song[], ratings: Rating[]): SongSuggestion[] {
-  const ratingBySong = new Map(ratings.map((r) => [r.songId, r]));
-  return songs
-    .map((s) => ({ song: s, rating: ratingBySong.get(s.id) }))
-    .filter((e) => e.rating && ACTIVE_STATUSES.includes(e.rating.status) && e.song.lastPlayed)
+/**
+ * Rediscover (V5 item 6): songs you rate well and clearly enjoy, that still
+ * suit your voice, but haven't been played in a long time. Prime candidates to
+ * bring back into rotation. Ranked by how long ago they were last played.
+ */
+export function computeRediscoverSongs(songs: Song[], ratings: Rating[]): SongSuggestion[] {
+  return join(songs, ratings)
+    .filter((e) => {
+      const r = e.rating;
+      if (!r || !e.song.lastPlayed) return false;
+      const stillSuits = (r.reliability ?? 0) >= 3 || (r.enjoyment ?? 0) >= 4;
+      const active = ACTIVE_STATUSES.includes(r.status);
+      return active && stillSuits;
+    })
     .sort((a, b) => new Date(a.song.lastPlayed!).getTime() - new Date(b.song.lastPlayed!).getTime())
-    .slice(0, 20)
+    .slice(0, LIST_LIMIT)
     .map((e) => ({
       songId: e.song.id,
       title: e.song.title,
-      reason: `Last played ${new Date(e.song.lastPlayed!).toLocaleDateString()}`,
+      reason: `Last played ${new Date(e.song.lastPlayed!).toLocaleDateString()} · reliability ${
+        e.rating!.reliability ?? '—'
+      }/5`,
+    }));
+}
+
+/**
+ * Ready for promotion (V5 item 5): songs marked Learning that you now nail
+ * reliably — time to move them into Occasional/Regular rotation.
+ */
+export function computeSongsReadyForPromotion(songs: Song[], ratings: Rating[]): SongSuggestion[] {
+  return join(songs, ratings)
+    .filter((e) => e.rating?.status === 'learning' && (e.rating.reliability ?? 0) >= 4)
+    .sort((a, b) => (b.rating?.reliability ?? 0) - (a.rating?.reliability ?? 0))
+    .slice(0, LIST_LIMIT)
+    .map((e) => ({
+      songId: e.song.id,
+      title: e.song.title,
+      reason: `Reliability ${e.rating!.reliability}/5 while still Learning — ready to promote`,
+    }));
+}
+
+/**
+ * Needs practice (V5 item 5): songs in active rotation whose reliability is
+ * lagging — the priority practice list.
+ */
+export function computeSongsNeedingPractice(songs: Song[], ratings: Rating[]): SongSuggestion[] {
+  return join(songs, ratings)
+    .filter((e) => e.rating && ACTIVE_STATUSES.includes(e.rating.status) && (e.rating.reliability ?? 5) <= 2)
+    .sort((a, b) => (a.rating?.reliability ?? 5) - (b.rating?.reliability ?? 5))
+    .slice(0, LIST_LIMIT)
+    .map((e) => ({
+      songId: e.song.id,
+      title: e.song.title,
+      reason: `In rotation but reliability ${e.rating!.reliability}/5`,
+    }));
+}
+
+/**
+ * Hidden gems (V5 item 5): songs you clearly enjoy and perform reliably, but
+ * that aren't yet in regular rotation (Occasional/Learning/Unexplored) — worth
+ * featuring more.
+ */
+export function computeHiddenGems(songs: Song[], ratings: Rating[]): SongSuggestion[] {
+  return join(songs, ratings)
+    .filter((e) => {
+      const r = e.rating;
+      if (!r || r.status === 'regular') return false;
+      return (r.enjoyment ?? 0) >= 4 && (r.reliability ?? 0) >= 4;
+    })
+    .sort(
+      (a, b) =>
+        (b.rating!.enjoyment ?? 0) + (b.rating!.reliability ?? 0) -
+        ((a.rating!.enjoyment ?? 0) + (a.rating!.reliability ?? 0))
+    )
+    .slice(0, LIST_LIMIT)
+    .map((e) => ({
+      songId: e.song.id,
+      title: e.song.title,
+      reason: `Enjoyment ${e.rating!.enjoyment}/5 · reliability ${e.rating!.reliability}/5, not yet Regular`,
+    }));
+}
+
+/**
+ * Recovery songs (V5 item 5): reliable, low-fatigue numbers — the songs to
+ * reach for right after something demanding, to let the voice settle.
+ */
+export function computeRecoverySongs(songs: Song[], ratings: Rating[]): SongSuggestion[] {
+  return join(songs, ratings)
+    .filter((e) => {
+      const r = e.rating;
+      if (!r || !ACTIVE_STATUSES.includes(r.status)) return false;
+      return (r.fatigue ?? 5) <= 2 && (r.reliability ?? 0) >= 4;
+    })
+    .sort((a, b) => (a.rating!.fatigue ?? 5) - (b.rating!.fatigue ?? 5))
+    .slice(0, LIST_LIMIT)
+    .map((e) => ({
+      songId: e.song.id,
+      title: e.song.title,
+      reason: `Low fatigue (${e.rating!.fatigue}/5), reliable (${e.rating!.reliability}/5) — good recovery`,
+    }));
+}
+
+/**
+ * High-demand songs (V5 items 5/11): the Tough/Challenging numbers. Useful for
+ * pacing a set and for spotting Vocal Efficiency Review candidates.
+ */
+export function computeHighDemandSongs(songs: Song[], ratings: Rating[]): SongSuggestion[] {
+  return join(songs, ratings)
+    .filter((e) => (e.rating?.demand ?? 0) >= DEMAND_REVIEW_THRESHOLD)
+    .sort((a, b) => (b.rating?.demand ?? 0) - (a.rating?.demand ?? 0))
+    .slice(0, LIST_LIMIT)
+    .map((e) => ({
+      songId: e.song.id,
+      title: e.song.title,
+      reason: e.rating!.demand === 5 ? 'Challenging vocal demand' : 'Tough vocal demand',
     }));
 }

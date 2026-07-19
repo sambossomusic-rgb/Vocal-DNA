@@ -2,6 +2,52 @@
 
 All notable changes to VocalDNA are recorded here.
 
+## [5.0.0] — Version 5 (intelligent performance companion)
+
+Reworks the whole workflow so VocalDNA feels like a performance companion, not
+a database. Every screen now answers a decision. **No schema change** — still
+Dexie version 5; the new coach-decision layer reuses the existing `settings`
+table. See `HANDOVER_V5.md` for the full technical handover.
+
+### New navigation
+
+- Tabs are now **Home · Library · Insights · Assess**, and **Home is the
+  default screen**. Home answers "What should I do today?": songs in library,
+  songs assessed, Continue Assessing, a Vocal Efficiency Review preview, a
+  Rediscover preview, a Library Health summary, and quick access to Library +
+  Insights.
+- **Insights** merges the old Statistics and Voice Profile into one section
+  with four tabs — **Your Voice · Your Repertoire · Recommendations · Library
+  Health** — every card clickable through to a filtered song list.
+- Non-actionable charts removed (Recent Fatigue Trend, Weakest Keys by
+  Reliability).
+
+### Recommendations
+
+- A dedicated **Recommendations** tab: Vocal Efficiency Review, Rediscover
+  Songs, Ready for Promotion, Needs Practice, Songs to Learn Next, Hidden Gems,
+  Recovery Songs, High Demand Songs — each opens the relevant list.
+
+### Song Coach
+
+- Every Song Detail now has a **Song Coach** — plain-language advice (High Vocal
+  Demand, Reliable, Strong Opening Song, Good Recovery Song, Learning Progress)
+  instead of raw stats. When a key review applies it shows the recommendation +
+  reason + confidence with **Accept / Ignore / Test Later**. Accepting sets the
+  key inside VocalDNA only. Changing the key by hand marks the song **Review
+  Pending** until it's reassessed.
+
+### Vocal Efficiency Review
+
+- The key-review philosophy is renamed and made supportive: "Experiment with
+  F#", "Experiment a little lower", or "Current key appears optimal" — never
+  "you're singing it wrong."
+
+### Library
+
+- Filter options show counts, e.g. **"Country (184)"**, across Folders,
+  Playlists, Artists, Keys, Status, and Tags.
+
 ## [4.0.0] — Version 4 (maintenance, sync, and intelligence prep)
 
 Turns VocalDNA from a first-time assessment tool into an ongoing repertoire
